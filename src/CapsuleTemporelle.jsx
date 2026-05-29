@@ -63,6 +63,7 @@ const TYPES_CONTRIBUTION = [
   { id: "question", nom: "Répondre à une question", icone: "💭" },
   { id: "photo",    nom: "Une photo",               icone: "📷" },
   { id: "video",    nom: "Une vidéo",               icone: "🎬" },
+  { id: "vocal",    nom: "Un message vocal",        icone: "🎙️" },
 ];
 
 // Filtres colorimétriques (CSS). PAS de filtres de visage en réalité augmentée
@@ -135,19 +136,26 @@ function lireFichierEnBase64(evenement, callback) {
   lecteur.readAsDataURL(fichier);
 }
 
-// Envoie une image/vidéo (base64 ou URL existante) vers Supabase Storage.
+// Envoie un fichier (base64, Blob, ou URL existante) vers Supabase Storage.
 // Retourne l'URL publique définitive.
-async function uploaderFichier(bucket, dataUrl, chemin) {
-  if (!dataUrl || !dataUrl.startsWith("data:")) return dataUrl;
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  const ext = blob.type.split("/")[1]?.split(";")[0] || "jpg";
+async function uploaderFichier(bucket, fichier, chemin) {
+  if (!fichier) return null;
+  let blob;
+  if (fichier instanceof Blob) {
+    blob = fichier;
+  } else if (typeof fichier === "string" && fichier.startsWith("data:")) {
+    const res = await fetch(fichier);
+    blob = await res.blob();
+  } else {
+    return fichier; // déjà une URL publique
+  }
+  const ext = blob.type.split("/")[1]?.split(";")[0] || "bin";
   const { data, error } = await supabase.storage
     .from(bucket)
     .upload(`${chemin}.${ext}`, blob, { upsert: true });
   if (error) { console.error("Échec upload :", error); return null; }
   const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(data.path);
-  return publicUrl;
+  return `${publicUrl}?t=${Date.now()}`;
 }
 
 // ============================================================================
@@ -539,7 +547,7 @@ function EcranInviter({ capsule, allerVers }) {
   async function partager() {
     try {
       if (navigator.share) {
-        await navigator.share({ title: "Rejoins ma capsule", text: `Rejoins ma capsule "${capsule.nom}" !`, url: lien });
+        await navigator.share({ title: `Rejoins ma capsule "${capsule.nom}"`, text: `Rejoins ma capsule "${capsule.nom}" !\n\nCode : ${capsule.code}\nLien : ${lien}`, url: lien });
       } else {
         copier(lien, "lien"); // repli : copie si le partage natif n'existe pas
       }
@@ -628,15 +636,24 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
     <div style={S.ecran}>
       <EnTeteRetour titre={capsule.nom} onRetour={() => allerVers("capsules")} />
 
-      <div style={{ ...S.detailCouverture,
-        background: capsule.couverture ? `url(${capsule.couverture}) center/cover` : (typeInfo?.teinte || "#FF6B5E") }}>
-        {!capsule.couverture && <span style={{ fontSize: 56 }}>{typeInfo?.icone || "✨"}</span>}
-        <label style={S.boutonCouverture}>
-          📷 {capsule.couverture ? "Changer" : "Ajouter une photo"}
-          <input type="file" accept="image/*" style={{ display: "none" }}
-            onChange={(e) => lireFichierEnBase64(e, (b64) => modifierCouverture(capsule.id, b64))} />
-        </label>
-      </div>
+      <label style={{ display: "block", cursor: "pointer", marginBottom: 14 }}>
+        <div style={{ ...S.detailCouverture, marginBottom: 0,
+          background: capsule.couverture ? `url(${capsule.couverture}) center/cover` : (typeInfo?.teinte || "#FF6B5E") }}>
+          {!capsule.couverture && (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 56 }}>{typeInfo?.icone || "✨"}</div>
+              <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 600, marginTop: 8, background: "rgba(0,0,0,0.25)", padding: "6px 14px", borderRadius: 999 }}>
+                📷 Ajouter une photo de couverture
+              </div>
+            </div>
+          )}
+          {capsule.couverture && (
+            <div style={S.boutonCouverture}>📷 Changer</div>
+          )}
+        </div>
+        <input type="file" accept="image/*" style={{ display: "none" }}
+          onChange={(e) => lireFichierEnBase64(e, (b64) => modifierCouverture(capsule.id, b64))} />
+      </label>
 
       <div style={S.blocSceau}>
         {capsule.ouverte ? <div style={S.sceauEtat}>🎉 Capsule ouverte</div>
@@ -710,6 +727,49 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
   const [media, setMedia] = useState(null);
   const [filtre, setFiltre] = useState("original");
   const [ambiance, setAmbiance] = useState("soleil");
+  const [enregistrement, setEnregistrement] = useState(false);
+  const [audioBlob, setAudioBlob] = useState(null);
+  const [audioUrl, setAudioUrl] = useState(null);
+  const enregistreurRef = React.useRef(null);
+
+  React.useEffect(() => {
+    return () => {
+      enregistreurRef.current?.state === "recording" && enregistreurRef.current.stop();
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+    };
+  }, [audioUrl]);
+
+  async function commencerEnregistrement() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      const morceaux = [];
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) morceaux.push(e.data); };
+      recorder.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const blob = new Blob(morceaux, { type: "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        setAudioBlob(blob);
+        setAudioUrl(url);
+        setEnregistrement(false);
+      };
+      recorder.start();
+      enregistreurRef.current = recorder;
+      setEnregistrement(true);
+    } catch (e) {
+      alert("Impossible d'accéder au microphone : " + e.message);
+    }
+  }
+
+  function arreterEnregistrement() {
+    enregistreurRef.current?.stop();
+  }
+
+  function recommencer() {
+    if (audioUrl) URL.revokeObjectURL(audioUrl);
+    setAudioBlob(null);
+    setAudioUrl(null);
+  }
 
   function tirerQuestion() {
     const liste = QUESTIONS.adultes;
@@ -718,13 +778,16 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
   const peutEnvoyer =
     (typeContrib === "message" && texte.trim()) ||
     (typeContrib === "question" && texte.trim() && question) ||
-    ((typeContrib === "photo" || typeContrib === "video") && media);
+    ((typeContrib === "photo" || typeContrib === "video") && media) ||
+    (typeContrib === "vocal" && audioBlob);
 
   async function envoyer() {
     await ajouterContribution(capsule.id, {
       id: genererId(), auteurId, type: typeContrib, texte: texte.trim(),
       question: typeContrib === "question" ? question : null,
-      media: (typeContrib === "photo" || typeContrib === "video") ? media : null,
+      media: (typeContrib === "photo" || typeContrib === "video") ? media
+           : typeContrib === "vocal" ? audioBlob
+           : null,
       filtre, ambiance: typeContrib === "message" ? ambiance : null,
       date: new Date().toISOString(), reactions: {},
     });
@@ -806,6 +869,33 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
         </>
       )}
 
+      {typeContrib === "vocal" && (
+        <>
+          {!audioBlob && !enregistrement && (
+            <button style={S.boutonEnregistrer} onClick={commencerEnregistrement}>
+              🎙️ Commencer l'enregistrement
+            </button>
+          )}
+          {enregistrement && (
+            <div style={S.blocEnregistrement}>
+              <div style={S.pointRouge} />
+              <span style={{ fontWeight: 700, color: "#FF3B30" }}>Enregistrement en cours…</span>
+              <button style={{ ...S.boutonMini, marginTop: 0, background: COULEURS.encre }} onClick={arreterEnregistrement}>
+                ⏹ Arrêter
+              </button>
+            </div>
+          )}
+          {audioBlob && !enregistrement && (
+            <div style={{ marginTop: 12 }}>
+              <audio src={audioUrl} controls style={{ width: "100%", borderRadius: 12 }} />
+              <button style={{ ...S.boutonSecondaire, marginTop: 10 }} onClick={recommencer}>
+                🔄 Recommencer
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
       {typeContrib && (
         <button style={{ ...S.boutonPrincipal, ...(peutEnvoyer ? {} : S.boutonDesactive) }} disabled={!peutEnvoyer} onClick={envoyer}>
           Sceller ce souvenir {auteur ? `· ${auteur.prenom}` : ""}
@@ -874,6 +964,12 @@ function EcranOuverture({ capsule, allerVers, reagir }) {
         {courant.question && <div style={S.souvenirQuestion}>{courant.question}</div>}
         {courant.type === "photo" && courant.media && <img src={courant.media} alt="souvenir" style={{ ...S.souvenirMedia, filter: cssFiltre }} />}
         {courant.type === "video" && courant.media && <video src={courant.media} controls style={{ ...S.souvenirMedia, filter: cssFiltre }} />}
+        {courant.type === "vocal" && courant.media && (
+          <div style={S.lecteurAudio}>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>🎙️</div>
+            <audio src={courant.media} controls style={{ width: "100%" }} />
+          </div>
+        )}
         {courant.texte && courant.type === "message" && ambiance ? (
           <div style={{ ...S.souvenirMessageAmbiance, background: ambiance.fond, color: ambiance.texte }}>{courant.texte}</div>
         ) : (courant.texte && <div style={S.souvenirTexte}>{courant.texte}</div>)}
@@ -1073,7 +1169,9 @@ export default function App() {
 
   async function modifierCouverture(capsuleId, photo) {
     const couverture_url = await uploaderFichier("couvertures", photo, capsuleId);
-    await supabase.from("capsules").update({ couverture_url }).eq("id", capsuleId);
+    if (!couverture_url) { alert("Échec de l'upload photo. Vérifiez les permissions du bucket 'couvertures' dans Supabase."); return; }
+    const { error } = await supabase.from("capsules").update({ couverture_url }).eq("id", capsuleId);
+    if (error) { alert("Erreur : " + error.message); return; }
     setCapsules(l => l.map(c => c.id === capsuleId ? { ...c, couverture: couverture_url } : c));
   }
 
@@ -1335,6 +1433,11 @@ const S = {
   albumSous: { fontSize: 14, opacity: 0.92, marginTop: 6, lineHeight: 1.5 },
   albumFleche: { fontSize: 15, fontWeight: 700, marginTop: 14 },
   albumConfirme: { background: "#fff", color: "#2E7D55", borderRadius: 18, padding: 18, fontSize: 15, lineHeight: 1.5, boxShadow: "0 4px 14px rgba(46,34,48,0.08)" },
+
+  boutonEnregistrer: { width: "100%", background: "#FF3B30", color: "#fff", border: "none", borderRadius: 16, padding: 18, fontSize: 16, fontWeight: 700, cursor: "pointer", marginTop: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 10, fontFamily: "'Plus Jakarta Sans', sans-serif" },
+  blocEnregistrement: { display: "flex", flexDirection: "column", alignItems: "center", gap: 12, background: "#FFF0F0", borderRadius: 16, padding: "18px 16px", marginTop: 12 },
+  pointRouge: { width: 14, height: 14, borderRadius: "50%", background: "#FF3B30", animation: "pulse 1s infinite" },
+  lecteurAudio: { background: "#F8F0F5", borderRadius: 16, padding: "20px 16px", textAlign: "center", marginBottom: 12 },
 
   barreOnglets: { position: "absolute", bottom: 0, left: 0, right: 0, height: 72, background: "rgba(255,255,255,0.92)", borderTop: `1px solid ${COULEURS.bordure}`, display: "flex", backdropFilter: "blur(10px)" },
   onglet: { flex: 1, background: "none", border: "none", cursor: "pointer", color: COULEURS.doux, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 2 },
