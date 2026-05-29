@@ -627,7 +627,18 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
   const [editionDate, setEditionDate] = useState(false);
   const [nouvelleDate, setNouvelleDate] = useState(capsule?.dateOuverture || "");
 
+  const MAX_AFFICHES = 20;
+  const affichesParticipants = React.useMemo(() => {
+    if (!capsule) return [];
+    const liste = capsule.participants;
+    if (liste.length <= MAX_AFFICHES) return liste;
+    return [...liste].sort(() => Math.random() - 0.5).slice(0, MAX_AFFICHES);
+  }, [capsule?.id, capsule?.participants?.length]);
+
   if (!capsule) return null;
+  const total = capsule.participants.length;
+  const tailleAvatar = total <= 3 ? 64 : total <= 8 ? 52 : total <= 14 ? 44 : 38;
+  const tailleNom = Math.max(10, tailleAvatar * 0.22);
   const jours = joursRestants(capsule.dateOuverture);
   const ouvrable = estOuvrable(capsule);
   const typeInfo = TYPES_CAPSULES.find((t) => t.id === capsule.type);
@@ -683,26 +694,42 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
         <div style={S.statBloc}><div style={S.statChiffre}>{capsule.participants.length}</div><div style={S.statLabel}>participants</div></div>
       </div>
 
-      {/* PARTICIPANTS de cette capsule : chacun éditable, + invitation + ajout. */}
+      {/* Grille des participants */}
       <div style={{ marginTop: 16 }}>
-        <label style={S.label}>Participants</label>
-        {capsule.participants.map((p) => (
-          <button key={p.id} style={S.carteMembre} onClick={() => editerParticipant(p.id, "detail")}>
-            <Avatar membre={p} taille={40} />
-            <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-              <div style={S.membreNom}>{p.prenom}{p.userId === moi?.id && <span style={S.badgeVous}>vous</span>}</div>
-              <div style={S.membreDesc}>{p.description || "Pas de description"}</div>
+        <label style={S.label}>
+          {total} participant{total > 1 ? "s" : ""}
+          {total > MAX_AFFICHES && <span style={{ fontWeight: 400, color: COULEURS.doux }}> · aperçu aléatoire</span>}
+        </label>
+        <div style={{ background: "#fff", borderRadius: 22, padding: "18px 12px", boxShadow: "0 4px 14px rgba(46,34,48,0.07)", display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
+          {affichesParticipants.map((p) => (
+            <button key={p.id} onClick={() => editerParticipant(p.id, "detail")}
+              style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "4px 2px", borderRadius: 12 }}>
+              <div style={{ position: "relative" }}>
+                <Avatar membre={p} taille={tailleAvatar} />
+                {p.userId === moi?.id && (
+                  <div style={{ position: "absolute", bottom: 0, right: 0, width: 14, height: 14, borderRadius: "50%", background: DEGRADE, border: "2px solid #fff" }} />
+                )}
+              </div>
+              <span style={{ fontSize: tailleNom, fontWeight: 600, color: COULEURS.encre, maxWidth: tailleAvatar + 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {p.prenom}
+              </span>
+            </button>
+          ))}
+          {total > MAX_AFFICHES && (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "4px 2px" }}>
+              <div style={{ width: tailleAvatar, height: tailleAvatar, borderRadius: "50%", background: COULEURS.bordure, display: "flex", alignItems: "center", justifyContent: "center", color: COULEURS.doux, fontWeight: 700, fontSize: tailleAvatar * 0.28 }}>
+                +{total - MAX_AFFICHES}
+              </div>
+              <span style={{ fontSize: tailleNom, color: COULEURS.doux, fontWeight: 600 }}>autres</span>
             </div>
-            <span style={{ color: COULEURS.doux, fontSize: 18 }}>›</span>
-          </button>
-        ))}
-        {/* Inviter (lien + code) — l'action clé de la nouvelle architecture. */}
-        <button style={S.boutonInviter} onClick={() => allerVers("inviter", capsule.id)}>🔗 Inviter quelqu'un</button>
+          )}
+        </div>
       </div>
 
       {!capsule.ouverte && (
         <>
           <button style={S.boutonPrincipal} onClick={() => allerVers("contribution", capsule.id)}>+ Déposer un souvenir</button>
+          <button style={S.boutonInviter} onClick={() => allerVers("inviter", capsule.id)}>🔗 Inviter quelqu'un</button>
           <p style={S.aide}>Le contenu reste secret jusqu'à l'ouverture.</p>
           {ouvrable && <button style={S.boutonOuvrir} onClick={() => ouvrirCapsule(capsule.id)}>🔓 Ouvrir la capsule</button>}
         </>
