@@ -396,6 +396,7 @@ function EcranCreation({ allerVers, creerCapsule }) {
   const [type, setType] = useState(null);
   const [date, setDate] = useState("");
   const [couverture, setCouverture] = useState(null);
+  const [enCours, setEnCours] = useState(false);
 
   function choisirType(t) {
     setType(t.id);
@@ -432,12 +433,19 @@ function EcranCreation({ allerVers, creerCapsule }) {
       <input style={S.input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
       <p style={S.aide}>Laissez vide pour décider du jour d'ouverture plus tard.</p>
 
-      <button style={{ ...S.boutonPrincipal, ...(peutCreer ? {} : S.boutonDesactive) }} disabled={!peutCreer}
+      <button style={{ ...S.boutonPrincipal, ...(!peutCreer || enCours ? S.boutonDesactive : {}) }} disabled={!peutCreer || enCours}
         onClick={async () => {
-          const id = await creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture });
-          if (id) allerVers("detail", id);
+          setEnCours(true);
+          try {
+            const id = await creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture });
+            if (id) allerVers("detail", id);
+          } catch (e) {
+            alert("Erreur : " + e.message);
+          } finally {
+            setEnCours(false);
+          }
         }}>
-        Créer la capsule
+        {enCours ? "Création en cours…" : "Créer la capsule"}
       </button>
     </div>
   );
@@ -1029,20 +1037,18 @@ export default function App() {
   // --- Capsules ---
   async function creerCapsule({ nom, type, dateOuverture, couverture }) {
     const couverture_url = couverture ? await uploaderFichier("couvertures", couverture, genererId()) : null;
-    // On génère l'UUID côté client pour ne pas avoir besoin de relire depuis
-    // Supabase (le SELECT après INSERT était bloqué par RLS : pas encore participant).
     const capsuleId = crypto.randomUUID();
     const { error: errCapsule } = await supabase.from("capsules").insert({
       id: capsuleId, nom, type, date_ouverture: dateOuverture || null,
       couverture_url, code: genererCode(), created_by: session.user.id,
     });
-    if (errCapsule) { console.error("Erreur capsule :", errCapsule); return null; }
+    if (errCapsule) throw new Error("Capsule : " + errCapsule.message);
     const { error: errParticipant } = await supabase.from("participants").insert({
       capsule_id: capsuleId, user_id: session.user.id,
       prenom: moi.prenom, description: moi.description,
       photo_url: moi.photo, couleur: moi.couleur,
     });
-    if (errParticipant) { console.error("Erreur participant :", errParticipant); return null; }
+    if (errParticipant) throw new Error("Participant : " + errParticipant.message);
     await chargerDonnees();
     return capsuleId;
   }

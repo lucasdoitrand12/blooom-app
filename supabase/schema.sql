@@ -92,14 +92,9 @@ create policy "Modifier son profil" on profiles
   for update using (auth.uid() = id);
 
 -- capsules : visible seulement si on est participant
+-- (utilise la fonction utilisateur_est_participant pour éviter la récursion RLS)
 create policy "Lire ses capsules" on capsules
-  for select using (
-    exists (
-      select 1 from participants
-      where participants.capsule_id = capsules.id
-        and participants.user_id = auth.uid()
-    )
-  );
+  for select using (utilisateur_est_participant(id));
 
 create policy "Créer une capsule" on capsules
   for insert with check (auth.uid() = created_by);
@@ -108,14 +103,9 @@ create policy "Modifier sa capsule" on capsules
   for update using (created_by = auth.uid());
 
 -- participants : visibles par les autres participants de la même capsule
+-- (utilise la fonction utilisateur_est_participant pour éviter la récursion RLS)
 create policy "Voir les participants" on participants
-  for select using (
-    exists (
-      select 1 from participants p2
-      where p2.capsule_id = participants.capsule_id
-        and p2.user_id = auth.uid()
-    )
-  );
+  for select using (utilisateur_est_participant(capsule_id));
 
 create policy "Rejoindre une capsule" on participants
   for insert with check (
@@ -183,7 +173,26 @@ create policy "Réagir à une contribution" on reactions
 
 
 -- ----------------------------------------------------------------
--- 3. FONCTION : rejoindre une capsule par son code
+-- 3. FONCTION ANTI-RÉCURSION : vérifie si l'utilisateur est participant
+-- "security definer" = s'exécute sans RLS → pas de boucle infinie dans les policies
+-- ----------------------------------------------------------------
+
+create or replace function utilisateur_est_participant(p_capsule_id uuid)
+returns boolean
+language sql
+security definer
+stable
+as $$
+  select exists (
+    select 1 from participants
+    where capsule_id = p_capsule_id
+      and user_id = auth.uid()
+  );
+$$;
+
+
+-- ----------------------------------------------------------------
+-- 4. FONCTION : rejoindre une capsule par son code
 -- "security definer" = s'exécute avec les droits du serveur,
 -- pas ceux de l'utilisateur. On ne lui montre jamais la liste
 -- complète des capsules : il donne un code, il reçoit un accès.
