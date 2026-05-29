@@ -228,3 +228,24 @@ begin
   return v_participant_id;
 end;
 $$;
+
+-- ----------------------------------------------------------------
+-- 4. FONCTION : chercher une capsule par code (sans y être participant)
+-- Utilisée par l'écran "Rejoindre" pour afficher le nom avant de confirmer.
+-- "security definer" : contourne le RLS, on ne voit que nom + nb participants.
+-- ----------------------------------------------------------------
+
+create or replace function chercher_capsule_par_code(p_code text)
+returns table(id uuid, nom text, nb_participants bigint)
+language plpgsql
+security definer
+as $$
+begin
+  return query
+  select c.id, c.nom, count(p.id) as nb_participants
+  from capsules c
+  left join participants p on p.capsule_id = c.id
+  where c.code = upper(p_code)
+  group by c.id, c.nom;
+end;
+$$;

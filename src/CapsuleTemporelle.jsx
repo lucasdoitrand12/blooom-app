@@ -26,22 +26,7 @@
 // ============================================================================
 
 import React, { useState, useEffect, useCallback } from "react";
-
-// ============================================================================
-//  1. MODULE DE STOCKAGE  (seul bloc à modifier pour la production)
-// ============================================================================
-const Stockage = {
-  async lire(cle) {
-    try {
-      return localStorage.getItem(cle);
-    } catch (e) { return null; }
-  },
-  async ecrire(cle, valeur) {
-    try {
-      localStorage.setItem(cle, valeur);
-    } catch (e) { console.error("Échec de sauvegarde :", e); }
-  },
-};
+import { supabase } from "./lib/supabase";
 
 // ============================================================================
 //  2. DONNÉES DE RÉFÉRENCE
@@ -141,8 +126,7 @@ function estOuvrable(capsule) {
 function initiales(prenom) {
   return (prenom || "?").trim().slice(0, 1).toUpperCase();
 }
-// Lecture d'un fichier en base64 (factorisée : photos de profil, couvertures,
-// médias de souvenirs). EN PROD : envoyer vers un stockage cloud, garder un lien.
+// Lecture locale en base64 — utilisée uniquement pour la prévisualisation immédiate.
 function lireFichierEnBase64(evenement, callback) {
   const fichier = evenement.target.files[0];
   if (!fichier) return;
@@ -151,27 +135,76 @@ function lireFichierEnBase64(evenement, callback) {
   lecteur.readAsDataURL(fichier);
 }
 
+// Envoie une image/vidéo (base64 ou URL existante) vers Supabase Storage.
+// Retourne l'URL publique définitive.
+async function uploaderFichier(bucket, dataUrl, chemin) {
+  if (!dataUrl || !dataUrl.startsWith("data:")) return dataUrl;
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const ext = blob.type.split("/")[1]?.split(";")[0] || "jpg";
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(`${chemin}.${ext}`, blob, { upsert: true });
+  if (error) { console.error("Échec upload :", error); return null; }
+  const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(data.path);
+  return publicUrl;
+}
+
 // ============================================================================
-//  4. HOOK DE PERSISTANCE — useStockage
+//  4. NORMALISATION — convertit le format BDD vers le format UI
 // ============================================================================
-function useStockage(cle, valeurInitiale) {
-  const [valeur, setValeur] = useState(valeurInitiale);
-  const [pret, setPret] = useState(false);
-  useEffect(() => {
-    let actif = true;
-    (async () => {
-      const brut = await Stockage.lire(cle);
-      if (actif && brut != null) {
-        try { setValeur(JSON.parse(brut)); } catch { /* donnée corrompue : ignorée */ }
-      }
-      if (actif) setPret(true);
-    })();
-    return () => { actif = false; };
-  }, [cle]);
-  useEffect(() => {
-    if (pret) Stockage.ecrire(cle, JSON.stringify(valeur));
-  }, [cle, valeur, pret]);
-  return [valeur, setValeur, pret];
+function normaliserProfil(p) {
+  return {
+    id: p.id,
+    prenom: p.prenom,
+    description: p.description || "",
+    photo: p.photo_url || null,
+    couleur: p.couleur || COULEURS_AVATAR[0],
+  };
+}
+
+function normaliserParticipant(p) {
+  return {
+    id: p.id,
+    userId: p.user_id || null,
+    prenom: p.prenom,
+    description: p.description || "",
+    photo: p.photo_url || null,
+    couleur: p.couleur || COULEURS_AVATAR[0],
+  };
+}
+
+function normaliserContribution(c) {
+  const reactions = (c.reactions || []).reduce(
+    (acc, r) => ({ ...acc, [r.type]: (acc[r.type] || 0) + 1 }), {}
+  );
+  return {
+    id: c.id,
+    auteurId: c.auteur_id,
+    type: c.type,
+    texte: c.texte || "",
+    question: c.question || null,
+    media: c.media_url || null,
+    filtre: c.filtre || "original",
+    ambiance: c.ambiance || null,
+    date: c.created_at,
+    reactions,
+  };
+}
+
+function normaliserCapsule(c) {
+  return {
+    id: c.id,
+    nom: c.nom,
+    type: c.type,
+    dateOuverture: c.date_ouverture || null,
+    couverture: c.couverture_url || null,
+    dateCreation: c.created_at,
+    ouverte: c.ouverte,
+    code: c.code,
+    participants: (c.participants || []).map(normaliserParticipant),
+    contributions: (c.contributions || []).map(normaliserContribution),
+  };
 }
 
 // ============================================================================
@@ -416,16 +449,23 @@ function EcranCreation({ allerVers, creerCapsule }) {
 //  EN PROD : le code interrogerait le serveur (la capsule vit chez quelqu'un
 //  d'autre) puis l'ajouterait à votre liste.
 // ============================================================================
-function EcranRejoindre({ capsules, moi, allerVers, rejoindreCapsule }) {
+function EcranRejoindre({ moi, allerVers, rechercherCapsule, rejoindreCapsule }) {
   const [code, setCode] = useState("");
-  // On normalise la saisie (majuscules, sans tiret/espace) pour la comparaison.
   const codePropre = code.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  // Recherche de la capsule correspondant au code (null si introuvable).
-  const trouvee = capsules.find((c) => c.code === codePropre);
-  // Champs d'identité, pré-remplis avec "moi" mais modifiables (on peut
-  // rejoindre sous un autre prénom dans la démo, pour simuler une autre personne).
+  const [capsuleTrouvee, setCapsuleTrouvee] = useState(null);
+  const [recherche, setRecherche] = useState(false);
   const [prenom, setPrenom] = useState(moi.prenom);
   const [photo, setPhoto] = useState(moi.photo || null);
+  const [enCours, setEnCours] = useState(false);
+
+  useEffect(() => {
+    if (codePropre.length !== 6) { setCapsuleTrouvee(null); return; }
+    setRecherche(true);
+    rechercherCapsule(codePropre).then((res) => {
+      setCapsuleTrouvee(res || null);
+      setRecherche(false);
+    });
+  }, [codePropre]);
 
   return (
     <div style={S.ecran}>
@@ -434,18 +474,18 @@ function EcranRejoindre({ capsules, moi, allerVers, rejoindreCapsule }) {
       <input style={{ ...S.input, letterSpacing: 4, textTransform: "uppercase", fontWeight: 700, textAlign: "center", fontSize: 22 }}
         placeholder="ABC123" maxLength={7} value={code} onChange={(e) => setCode(e.target.value)} />
 
-      {/* Cas : code complet (6 caractères) mais aucune capsule trouvée. */}
-      {codePropre.length === 6 && !trouvee && (
+      {recherche && <p style={S.aide}>Recherche en cours…</p>}
+
+      {codePropre.length === 6 && !recherche && !capsuleTrouvee && (
         <p style={{ ...S.aide, color: COULEURS.corail }}>Aucune capsule ne correspond à ce code.</p>
       )}
 
-      {/* Cas : capsule trouvée -> on confirme et on demande l'identité du nouvel arrivant. */}
-      {trouvee && (
+      {capsuleTrouvee && (
         <div style={{ marginTop: 16 }}>
           <div style={S.carteTrouvee}>
-            <div style={{ fontWeight: 700, fontSize: 17 }}>✨ {trouvee.nom}</div>
+            <div style={{ fontWeight: 700, fontSize: 17 }}>✨ {capsuleTrouvee.nom}</div>
             <div style={{ color: COULEURS.doux, fontSize: 14, marginTop: 2 }}>
-              {trouvee.participants.length} participant{trouvee.participants.length > 1 ? "s" : ""}
+              {capsuleTrouvee.nb_participants} participant{capsuleTrouvee.nb_participants > 1 ? "s" : ""}
             </div>
           </div>
           <label style={S.label}>Vous rejoignez sous le prénom</label>
@@ -453,12 +493,15 @@ function EcranRejoindre({ capsules, moi, allerVers, rejoindreCapsule }) {
             <SelecteurPhotoProfil photo={photo} couleur={moi.couleur} prenom={prenom} onChange={setPhoto} taille={56} />
             <input style={{ ...S.input, flex: 1 }} value={prenom} onChange={(e) => setPrenom(e.target.value)} />
           </div>
-          <button style={{ ...S.boutonPrincipal, ...(prenom.trim() ? {} : S.boutonDesactive) }} disabled={!prenom.trim()}
-            onClick={() => {
-              const id = rejoindreCapsule(trouvee.id, { prenom: prenom.trim(), photo });
-              allerVers("detail", id);
+          <button style={{ ...S.boutonPrincipal, ...(prenom.trim() && !enCours ? {} : S.boutonDesactive) }}
+            disabled={!prenom.trim() || enCours}
+            onClick={async () => {
+              setEnCours(true);
+              const id = await rejoindreCapsule(capsuleTrouvee.id, codePropre, { prenom: prenom.trim(), photo });
+              setEnCours(false);
+              if (id) allerVers("detail", id);
             }}>
-            Rejoindre cette capsule
+            {enCours ? "Rejoindre…" : "Rejoindre cette capsule"}
           </button>
         </div>
       )}
@@ -622,7 +665,7 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
           <button key={p.id} style={S.carteMembre} onClick={() => editerParticipant(p.id, "detail")}>
             <Avatar membre={p} taille={40} />
             <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-              <div style={S.membreNom}>{p.prenom}{p.id === moi.id && <span style={S.badgeVous}>vous</span>}</div>
+              <div style={S.membreNom}>{p.prenom}{p.userId === moi?.id && <span style={S.badgeVous}>vous</span>}</div>
               <div style={S.membreDesc}>{p.description || "Pas de description"}</div>
             </div>
             <span style={{ color: COULEURS.doux, fontSize: 18 }}>›</span>
@@ -651,7 +694,7 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
 // ============================================================================
 function EcranContribution({ capsule, moi, allerVers, ajouterContribution, editerParticipant }) {
   // Auteur par défaut : "moi" s'il participe, sinon le 1er participant.
-  const auteurDefaut = capsule.participants.find((p) => p.id === moi.id) || capsule.participants[0];
+  const auteurDefaut = capsule.participants.find((p) => p.userId === moi?.id) || capsule.participants[0];
   const [auteurId, setAuteurId] = useState(auteurDefaut?.id);
   const [typeContrib, setTypeContrib] = useState(null);
   const [texte, setTexte] = useState("");
@@ -842,101 +885,270 @@ function EcranOuverture({ capsule, allerVers, reagir }) {
 }
 
 // ============================================================================
-//  6. COMPOSANT PRINCIPAL — App
+//  6. ÉCRAN DE CONNEXION (lien magique par e-mail)
+// ============================================================================
+function EcranConnexion() {
+  const [email, setEmail] = useState("");
+  const [envoye, setEnvoye] = useState(false);
+  const [chargement, setChargement] = useState(false);
+
+  async function envoyer() {
+    if (!email.trim()) return;
+    setChargement(true);
+    const { error } = await supabase.auth.signInWithOtp({
+      email: email.trim(),
+      options: { emailRedirectTo: window.location.origin },
+    });
+    setChargement(false);
+    if (!error) setEnvoye(true);
+    else alert("Erreur : " + error.message);
+  }
+
+  if (envoye) return (
+    <CadreTelephone>
+      <div style={{ ...S.ecran, justifyContent: "center", textAlign: "center" }}>
+        <div style={{ fontSize: 56 }}>📬</div>
+        <h1 style={S.titrePage}>Vérifiez vos e-mails</h1>
+        <p style={{ ...S.aide, textAlign: "center", marginTop: 12 }}>
+          Un lien de connexion a été envoyé à <strong>{email}</strong>.
+          Cliquez dessus pour accéder à l'application.
+        </p>
+        <button style={{ ...S.boutonSecondaire, marginTop: 24 }} onClick={() => setEnvoye(false)}>
+          ← Changer d'adresse
+        </button>
+      </div>
+    </CadreTelephone>
+  );
+
+  return (
+    <CadreTelephone>
+      <div style={{ ...S.ecran, justifyContent: "center" }}>
+        <div style={{ fontSize: 56, textAlign: "center" }}>🎁</div>
+        <h1 style={{ ...S.titrePage, textAlign: "center" }}>Capsule</h1>
+        <p style={{ ...S.aide, textAlign: "center", marginBottom: 24 }}>
+          Entrez votre adresse e-mail pour recevoir un lien de connexion.
+        </p>
+        <label style={S.label}>Adresse e-mail</label>
+        <input
+          style={S.input}
+          type="email"
+          placeholder="vous@exemple.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && envoyer()}
+          autoFocus
+        />
+        <button
+          style={{ ...S.boutonPrincipal, ...(email.trim() && !chargement ? {} : S.boutonDesactive) }}
+          disabled={!email.trim() || chargement}
+          onClick={envoyer}
+        >
+          {chargement ? "Envoi…" : "Recevoir le lien de connexion"}
+        </button>
+      </div>
+    </CadreTelephone>
+  );
+}
+
+// ============================================================================
+//  7. COMPOSANT PRINCIPAL — App
 // ============================================================================
 export default function App() {
-  const [moi, setMoi, moiPret] = useStockage("capsule_moi_v4", null);
-  const [capsules, setCapsules, capsulesPret] = useStockage("capsule_liste_v4", []);
+  const [session, setSession] = useState(null);
+  const [sessionPrete, setSessionPrete] = useState(false);
+  const [moi, setMoi] = useState(null);
+  const [capsules, setCapsules] = useState([]);
+  const [chargement, setChargement] = useState(true);
 
   const [ecran, setEcran] = useState("capsules");
   const [capsuleActiveId, setCapsuleActiveId] = useState(null);
   const [participantActifId, setParticipantActifId] = useState(null);
   const [retourParticipant, setRetourParticipant] = useState("detail");
 
+  // Écoute les changements de session (connexion / déconnexion / lien magique cliqué)
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setSessionPrete(true);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!sessionPrete) return;
+    if (!session) { setChargement(false); return; }
+    chargerDonnees();
+  }, [session, sessionPrete]);
+
+  async function chargerDonnees() {
+    setChargement(true);
+    const [{ data: profil }, { data: capsulesDB }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle(),
+      supabase.from("capsules")
+        .select("*, participants(*), contributions(*, reactions(*))")
+        .order("created_at", { ascending: false }),
+    ]);
+    if (profil) setMoi(normaliserProfil(profil));
+    if (capsulesDB) setCapsules(capsulesDB.map(normaliserCapsule));
+    setChargement(false);
+  }
+
   const allerVers = useCallback((nouvelEcran, id = null) => {
     setEcran(nouvelEcran);
     if (id !== null) setCapsuleActiveId(id);
   }, []);
 
-  // Ouvre l'éditeur de participant dans la capsule active (création si "nouveau").
   const editerParticipant = useCallback((pid, origine) => {
     setParticipantActifId(pid);
     setRetourParticipant(origine);
     setEcran("participant");
   }, []);
 
-  // --- Identité "moi" ---
-  function creerMoi({ prenom, description, photo }) {
-    setMoi({ id: genererId(), prenom, description, photo: photo || null, couleur: COULEURS_AVATAR[0] });
+  // --- Profil ---
+  async function creerMoi({ prenom, description, photo }) {
+    const photo_url = photo ? await uploaderFichier("avatars", photo, session.user.id) : null;
+    const { data } = await supabase.from("profiles").upsert({
+      id: session.user.id, prenom, description, photo_url, couleur: COULEURS_AVATAR[0],
+    }).select().single();
+    if (data) setMoi(normaliserProfil(data));
   }
-  function modifierMoi(champs) {
-    setMoi((m) => ({ ...m, ...champs }));
+
+  async function modifierMoi(champs) {
+    const photo_url = champs.photo && champs.photo !== moi.photo
+      ? await uploaderFichier("avatars", champs.photo, session.user.id)
+      : moi.photo;
+    const { data } = await supabase.from("profiles")
+      .update({ prenom: champs.prenom, description: champs.description, photo_url })
+      .eq("id", session.user.id).select().single();
+    if (data) setMoi(normaliserProfil(data));
   }
 
   // --- Capsules ---
-  function creerCapsule({ nom, type, dateOuverture, couverture }) {
-    // À la création, "moi" devient le premier participant (même id que moi,
-    // ce qui permet d'afficher le badge "vous"). On génère aussi le code unique.
-    const moiParticipant = { id: moi.id, prenom: moi.prenom, description: moi.description, photo: moi.photo, couleur: moi.couleur };
-    const nouvelle = {
-      id: genererId(), nom, type, dateOuverture, couverture: couverture || null,
-      dateCreation: new Date().toISOString(), ouverte: false, code: genererCode(),
-      participants: [moiParticipant], contributions: [],
-    };
-    setCapsules((liste) => [nouvelle, ...liste]);
-    return nouvelle.id;
-  }
-  function modifierDate(capsuleId, date) {
-    setCapsules((l) => l.map((c) => (c.id === capsuleId ? { ...c, dateOuverture: date } : c)));
-  }
-  function modifierCouverture(capsuleId, photo) {
-    setCapsules((l) => l.map((c) => (c.id === capsuleId ? { ...c, couverture: photo } : c)));
+  async function creerCapsule({ nom, type, dateOuverture, couverture }) {
+    const couverture_url = couverture ? await uploaderFichier("couvertures", couverture, genererId()) : null;
+    const { data: capsule } = await supabase.from("capsules").insert({
+      nom, type, date_ouverture: dateOuverture || null,
+      couverture_url, code: genererCode(), created_by: session.user.id,
+    }).select().single();
+    if (!capsule) return null;
+    await supabase.from("participants").insert({
+      capsule_id: capsule.id, user_id: session.user.id,
+      prenom: moi.prenom, description: moi.description,
+      photo_url: moi.photo, couleur: moi.couleur,
+    });
+    await chargerDonnees();
+    return capsule.id;
   }
 
-  // --- Participants (DANS une capsule) ---
-  function ajouterParticipant(capsuleId, { prenom, description, photo }) {
-    const id = genererId();
-    setCapsules((l) => l.map((c) =>
-      c.id !== capsuleId ? c : {
-        ...c,
-        participants: [...c.participants, { id, prenom, description, photo: photo || null, couleur: COULEURS_AVATAR[c.participants.length % COULEURS_AVATAR.length] }],
-      }
-    ));
-    return id;
+  async function modifierDate(capsuleId, date) {
+    await supabase.from("capsules").update({ date_ouverture: date || null }).eq("id", capsuleId);
+    setCapsules(l => l.map(c => c.id === capsuleId ? { ...c, dateOuverture: date } : c));
   }
-  function modifierParticipant(capsuleId, participantId, champs) {
-    setCapsules((l) => l.map((c) =>
-      c.id !== capsuleId ? c : { ...c, participants: c.participants.map((p) => (p.id === participantId ? { ...p, ...champs } : p)) }
-    ));
+
+  async function modifierCouverture(capsuleId, photo) {
+    const couverture_url = await uploaderFichier("couvertures", photo, capsuleId);
+    await supabase.from("capsules").update({ couverture_url }).eq("id", capsuleId);
+    setCapsules(l => l.map(c => c.id === capsuleId ? { ...c, couverture: couverture_url } : c));
   }
-  // Rejoindre : ajoute la personne comme participant si elle n'y est pas déjà.
-  function rejoindreCapsule(capsuleId, { prenom, photo }) {
-    ajouterParticipant(capsuleId, { prenom, description: "", photo });
+
+  // --- Participants ---
+  async function ajouterParticipant(capsuleId, { prenom, description, photo }) {
+    const photo_url = photo ? await uploaderFichier("avatars", photo, genererId()) : null;
+    const capsule = capsules.find(c => c.id === capsuleId);
+    const couleur = COULEURS_AVATAR[(capsule?.participants.length || 0) % COULEURS_AVATAR.length];
+    const { data } = await supabase.from("participants").insert({
+      capsule_id: capsuleId, prenom, description, photo_url, couleur,
+    }).select().single();
+    if (data) {
+      setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
+        ...c, participants: [...c.participants, normaliserParticipant(data)],
+      }));
+      return data.id;
+    }
+  }
+
+  async function modifierParticipant(capsuleId, participantId, champs) {
+    const photo_url = champs.photo
+      ? await uploaderFichier("avatars", champs.photo, participantId)
+      : undefined;
+    const update = { prenom: champs.prenom, description: champs.description };
+    if (photo_url !== undefined) update.photo_url = photo_url;
+    await supabase.from("participants").update(update).eq("id", participantId);
+    setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
+      ...c, participants: c.participants.map(p =>
+        p.id === participantId ? { ...p, ...champs, photo: photo_url ?? p.photo } : p
+      ),
+    }));
+  }
+
+  async function rechercherCapsule(code) {
+    const local = capsules.find(c => c.code === code);
+    if (local) return { id: local.id, nom: local.nom, nb_participants: local.participants.length };
+    const { data } = await supabase.rpc("chercher_capsule_par_code", { p_code: code });
+    return data?.[0] || null;
+  }
+
+  async function rejoindreCapsuleParCode(capsuleId, code, { prenom, photo }) {
+    const photo_url = photo ? await uploaderFichier("avatars", photo, genererId()) : null;
+    const { error } = await supabase.rpc("rejoindre_capsule", {
+      p_code: code, p_prenom: prenom, p_photo_url: photo_url,
+    });
+    if (error) { alert(error.message); return null; }
+    await chargerDonnees();
     return capsuleId;
   }
 
   // --- Contributions / ouverture / réactions ---
-  function ajouterContribution(capsuleId, contribution) {
-    setCapsules((l) => l.map((c) => (c.id === capsuleId ? { ...c, contributions: [...c.contributions, contribution] } : c)));
+  async function ajouterContribution(capsuleId, contribution) {
+    const media_url = contribution.media
+      ? await uploaderFichier("medias", contribution.media, genererId())
+      : null;
+    const { data } = await supabase.from("contributions").insert({
+      capsule_id: capsuleId,
+      auteur_id: contribution.auteurId,
+      type: contribution.type,
+      texte: contribution.texte || null,
+      question: contribution.question || null,
+      media_url,
+      filtre: contribution.filtre,
+      ambiance: contribution.ambiance || null,
+    }).select().single();
+    if (data) {
+      setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
+        ...c, contributions: [...c.contributions, normaliserContribution({ ...data, reactions: [] })],
+      }));
+    }
   }
-  function ouvrirCapsule(capsuleId) {
-    setCapsules((l) => l.map((c) => (c.id === capsuleId ? { ...c, ouverte: true } : c)));
+
+  async function ouvrirCapsule(capsuleId) {
+    await supabase.from("capsules").update({ ouverte: true }).eq("id", capsuleId);
+    setCapsules(l => l.map(c => c.id === capsuleId ? { ...c, ouverte: true } : c));
     allerVers("ouverture", capsuleId);
   }
-  function reagir(capsuleId, contribId, reactionId) {
-    setCapsules((l) => l.map((c) =>
-      c.id !== capsuleId ? c : {
-        ...c,
-        contributions: c.contributions.map((ct) =>
-          ct.id !== contribId ? ct : { ...ct, reactions: { ...ct.reactions, [reactionId]: (ct.reactions?.[reactionId] || 0) + 1 } }
-        ),
-      }
-    ));
+
+  async function reagir(capsuleId, contribId, reactionId) {
+    const capsule = capsules.find(c => c.id === capsuleId);
+    const participant = capsule?.participants.find(p => p.userId === session.user.id);
+    if (!participant) return;
+    await supabase.from("reactions").insert({
+      contribution_id: contribId, participant_id: participant.id, type: reactionId,
+    });
+    setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
+      ...c, contributions: c.contributions.map(ct =>
+        ct.id !== contribId ? ct : {
+          ...ct, reactions: { ...ct.reactions, [reactionId]: (ct.reactions?.[reactionId] || 0) + 1 },
+        }
+      ),
+    }));
   }
 
-  const capsuleActive = capsules.find((c) => c.id === capsuleActiveId);
+  const capsuleActive = capsules.find(c => c.id === capsuleActiveId);
 
-  if (!moiPret || !capsulesPret) return <CadreTelephone><div style={S.ecran} /></CadreTelephone>;
+  if (!sessionPrete || chargement) return <CadreTelephone><div style={S.ecran} /></CadreTelephone>;
+  if (!session) return <EcranConnexion />;
   if (!moi) return <CadreTelephone><EcranBienvenue creerMoi={creerMoi} /></CadreTelephone>;
 
   const afficherOnglets = ["capsules", "profil"].includes(ecran);
@@ -946,7 +1158,10 @@ export default function App() {
       {ecran === "capsules" && <EcranCapsules capsules={capsules} moi={moi} allerVers={allerVers} />}
       {ecran === "profil" && <EcranProfil moi={moi} capsules={capsules} modifierMoi={modifierMoi} />}
       {ecran === "creation" && <EcranCreation allerVers={allerVers} creerCapsule={creerCapsule} />}
-      {ecran === "rejoindre" && <EcranRejoindre capsules={capsules} moi={moi} allerVers={allerVers} rejoindreCapsule={rejoindreCapsule} />}
+      {ecran === "rejoindre" && (
+        <EcranRejoindre moi={moi} allerVers={allerVers}
+          rechercherCapsule={rechercherCapsule} rejoindreCapsule={rejoindreCapsuleParCode} />
+      )}
       {ecran === "inviter" && <EcranInviter capsule={capsuleActive} allerVers={allerVers} />}
       {ecran === "participant" && (
         <EcranEditionParticipant capsule={capsuleActive} participantActifId={participantActifId}
@@ -962,7 +1177,6 @@ export default function App() {
           ajouterContribution={ajouterContribution} editerParticipant={editerParticipant} />
       )}
       {ecran === "ouverture" && <EcranOuverture capsule={capsuleActive} allerVers={allerVers} reagir={reagir} />}
-
       {afficherOnglets && <BarreOnglets actif={ecran} allerVers={allerVers} />}
     </CadreTelephone>
   );
