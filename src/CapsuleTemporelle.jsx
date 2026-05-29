@@ -698,8 +698,6 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
         ))}
         {/* Inviter (lien + code) — l'action clé de la nouvelle architecture. */}
         <button style={S.boutonInviter} onClick={() => allerVers("inviter", capsule.id)}>🔗 Inviter quelqu'un</button>
-        {/* Ajout manuel (pour une personne sans l'app, dont on gère la contribution). */}
-        <button style={S.boutonSecondaire} onClick={() => editerParticipant("nouveau", "detail")}>+ Ajouter un participant</button>
       </div>
 
       {!capsule.ouverte && (
@@ -807,10 +805,6 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
             <span style={S.choixAuteurNom}>{p.prenom}</span>
           </button>
         ))}
-        <button style={S.choixAuteur} onClick={() => editerParticipant("nouveau", "contribution")}>
-          <div style={S.ajoutMembreRond}>+</div>
-          <span style={S.choixAuteurNom}>Ajouter</span>
-        </button>
       </div>
 
       {!typeContrib && (
