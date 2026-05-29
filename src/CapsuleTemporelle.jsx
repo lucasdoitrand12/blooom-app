@@ -360,8 +360,8 @@ function EcranProfil({ moi, capsules, modifierMoi }) {
   const [photo, setPhoto] = useState(moi.photo || null);
   const [enregistre, setEnregistre] = useState(false);
 
-  function enregistrer() {
-    modifierMoi({ prenom: prenom.trim(), description: description.trim(), photo });
+  async function enregistrer() {
+    await modifierMoi({ prenom: prenom.trim(), description: description.trim(), photo });
     setEnregistre(true);
     setTimeout(() => setEnregistre(false), 2000);
   }
@@ -433,9 +433,9 @@ function EcranCreation({ allerVers, creerCapsule }) {
       <p style={S.aide}>Laissez vide pour décider du jour d'ouverture plus tard.</p>
 
       <button style={{ ...S.boutonPrincipal, ...(peutCreer ? {} : S.boutonDesactive) }} disabled={!peutCreer}
-        onClick={() => {
-          const id = creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture });
-          allerVers("detail", id);
+        onClick={async () => {
+          const id = await creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture });
+          if (id) allerVers("detail", id);
         }}>
         Créer la capsule
       </button>
@@ -580,11 +580,11 @@ function EcranEditionParticipant({ capsule, participantActifId, ajouterParticipa
   const [photo, setPhoto] = useState(existant?.photo || null);
   const couleur = existant?.couleur || COULEURS_AVATAR[0];
 
-  function enregistrer() {
+  async function enregistrer() {
     if (!prenom.trim()) return;
     const champs = { prenom: prenom.trim(), description: description.trim(), photo };
-    if (estNouveau) ajouterParticipant(capsule.id, champs);
-    else modifierParticipant(capsule.id, participantActifId, champs);
+    if (estNouveau) await ajouterParticipant(capsule.id, champs);
+    else await modifierParticipant(capsule.id, participantActifId, champs);
     allerVers(retour, capsule.id);
   }
   return (
@@ -712,8 +712,8 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
     (typeContrib === "question" && texte.trim() && question) ||
     ((typeContrib === "photo" || typeContrib === "video") && media);
 
-  function envoyer() {
-    ajouterContribution(capsule.id, {
+  async function envoyer() {
+    await ajouterContribution(capsule.id, {
       id: genererId(), auteurId, type: typeContrib, texte: texte.trim(),
       question: typeContrib === "question" ? question : null,
       media: (typeContrib === "photo" || typeContrib === "video") ? media : null,
