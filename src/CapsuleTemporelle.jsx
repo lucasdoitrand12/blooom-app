@@ -1134,7 +1134,16 @@ export default function App() {
         .order("created_at", { ascending: false }),
     ]);
     if (profil) setMoi(normaliserProfil(profil));
-    if (capsulesDB) setCapsules(capsulesDB.map(normaliserCapsule));
+    if (capsulesDB) {
+      const liste = capsulesDB.map(normaliserCapsule);
+      // Applique la photo de profil sur toutes les entrées participant de l'utilisateur
+      if (profil) {
+        liste.forEach(c => c.participants.forEach(p => {
+          if (p.userId === session.user.id) p.photo = profil.photo_url || null;
+        }));
+      }
+      setCapsules(liste);
+    }
     setChargement(false);
   }
 
@@ -1165,7 +1174,16 @@ export default function App() {
     const { data } = await supabase.from("profiles")
       .update({ prenom: champs.prenom, description: champs.description, photo_url })
       .eq("id", session.user.id).select().single();
-    if (data) setMoi(normaliserProfil(data));
+    if (data) {
+      setMoi(normaliserProfil(data));
+      // Répercute la nouvelle photo sur toutes les entrées participant de l'utilisateur
+      setCapsules(l => l.map(c => ({
+        ...c,
+        participants: c.participants.map(p =>
+          p.userId === session.user.id ? { ...p, photo: photo_url, prenom: champs.prenom } : p
+        ),
+      })));
+    }
   }
 
   // --- Capsules ---
