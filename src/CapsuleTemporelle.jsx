@@ -701,20 +701,24 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
           {total > MAX_AFFICHES && <span style={{ fontWeight: 400, color: COULEURS.doux }}> · aperçu aléatoire</span>}
         </label>
         <div style={{ background: "#fff", borderRadius: 22, padding: "18px 12px", boxShadow: "0 4px 14px rgba(46,34,48,0.07)", display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "center" }}>
-          {affichesParticipants.map((p) => (
-            <button key={p.id} onClick={() => editerParticipant(p.id, "detail")}
-              style={{ background: "none", border: "none", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "4px 2px", borderRadius: 12 }}>
-              <div style={{ position: "relative" }}>
-                <Avatar membre={p} taille={tailleAvatar} />
-                {p.userId === moi?.id && (
-                  <div style={{ position: "absolute", bottom: 0, right: 0, width: 14, height: 14, borderRadius: "50%", background: DEGRADE, border: "2px solid #fff" }} />
-                )}
+          {affichesParticipants.map((p) => {
+            const estMoi = p.userId === moi?.id;
+            return (
+              <div key={p.id}
+                onClick={estMoi ? () => editerParticipant(p.id, "detail") : undefined}
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "4px 2px", borderRadius: 12, cursor: estMoi ? "pointer" : "default" }}>
+                <div style={{ position: "relative" }}>
+                  <Avatar membre={p} taille={tailleAvatar} />
+                  {estMoi && (
+                    <div style={{ position: "absolute", bottom: 0, right: 0, width: 14, height: 14, borderRadius: "50%", background: DEGRADE, border: "2px solid #fff" }} />
+                  )}
+                </div>
+                <span style={{ fontSize: tailleNom, fontWeight: 600, color: COULEURS.encre, maxWidth: tailleAvatar + 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {p.prenom}
+                </span>
               </div>
-              <span style={{ fontSize: tailleNom, fontWeight: 600, color: COULEURS.encre, maxWidth: tailleAvatar + 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {p.prenom}
-              </span>
-            </button>
-          ))}
+            );
+          })}
           {total > MAX_AFFICHES && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "4px 2px" }}>
               <div style={{ width: tailleAvatar, height: tailleAvatar, borderRadius: "50%", background: COULEURS.bordure, display: "flex", alignItems: "center", justifyContent: "center", color: COULEURS.doux, fontWeight: 700, fontSize: tailleAvatar * 0.28 }}>
