@@ -991,6 +991,19 @@ export default function App() {
     chargerDonnees();
   }, [session, sessionPrete]);
 
+  // Temps réel : recharge les données quand un autre appareil ajoute une
+  // contribution ou un participant. Supabase n'envoie que les événements
+  // autorisés par le RLS (les autres sont filtrés côté serveur).
+  useEffect(() => {
+    if (!session) return;
+    const canal = supabase
+      .channel('mises-a-jour')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contributions' }, () => chargerDonnees())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => chargerDonnees())
+      .subscribe();
+    return () => supabase.removeChannel(canal);
+  }, [session]);
+
   async function chargerDonnees() {
     setChargement(true);
     const [{ data: profil }, { data: capsulesDB }] = await Promise.all([
