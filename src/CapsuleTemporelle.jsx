@@ -1029,18 +1029,22 @@ export default function App() {
   // --- Capsules ---
   async function creerCapsule({ nom, type, dateOuverture, couverture }) {
     const couverture_url = couverture ? await uploaderFichier("couvertures", couverture, genererId()) : null;
-    const { data: capsule } = await supabase.from("capsules").insert({
-      nom, type, date_ouverture: dateOuverture || null,
+    // On génère l'UUID côté client pour ne pas avoir besoin de relire depuis
+    // Supabase (le SELECT après INSERT était bloqué par RLS : pas encore participant).
+    const capsuleId = crypto.randomUUID();
+    const { error: errCapsule } = await supabase.from("capsules").insert({
+      id: capsuleId, nom, type, date_ouverture: dateOuverture || null,
       couverture_url, code: genererCode(), created_by: session.user.id,
-    }).select().single();
-    if (!capsule) return null;
-    await supabase.from("participants").insert({
-      capsule_id: capsule.id, user_id: session.user.id,
+    });
+    if (errCapsule) { console.error("Erreur capsule :", errCapsule); return null; }
+    const { error: errParticipant } = await supabase.from("participants").insert({
+      capsule_id: capsuleId, user_id: session.user.id,
       prenom: moi.prenom, description: moi.description,
       photo_url: moi.photo, couleur: moi.couleur,
     });
+    if (errParticipant) { console.error("Erreur participant :", errParticipant); return null; }
     await chargerDonnees();
-    return capsule.id;
+    return capsuleId;
   }
 
   async function modifierDate(capsuleId, date) {
@@ -1059,15 +1063,19 @@ export default function App() {
     const photo_url = photo ? await uploaderFichier("avatars", photo, genererId()) : null;
     const capsule = capsules.find(c => c.id === capsuleId);
     const couleur = COULEURS_AVATAR[(capsule?.participants.length || 0) % COULEURS_AVATAR.length];
-    const { data } = await supabase.from("participants").insert({
-      capsule_id: capsuleId, prenom, description, photo_url, couleur,
-    }).select().single();
-    if (data) {
-      setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
-        ...c, participants: [...c.participants, normaliserParticipant(data)],
-      }));
-      return data.id;
-    }
+    const participantId = crypto.randomUUID();
+    const { error } = await supabase.from("participants").insert({
+      id: participantId, capsule_id: capsuleId, prenom,
+      description: description || null, photo_url, couleur,
+    });
+    if (error) { console.error("Erreur participant :", error); return null; }
+    setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
+      ...c, participants: [...c.participants, {
+        id: participantId, userId: null,
+        prenom, description: description || "", photo: photo_url || null, couleur,
+      }],
+    }));
+    return participantId;
   }
 
   async function modifierParticipant(capsuleId, participantId, champs) {
