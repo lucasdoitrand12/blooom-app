@@ -218,6 +218,40 @@ function normaliserCapsule(c) {
 // ============================================================================
 //  5. PETITS COMPOSANTS RÉUTILISABLES
 // ============================================================================
+
+// Logo Blooom : trois cercles de taille croissante (ooo) représentant la
+// floraison dans le temps. Chaque cercle est légèrement plus grand que le
+// précédent et progresse du chaud (orange) vers le profond (violet).
+function LogoBlooom({ taille = 44 }) {
+  const ep = Math.max(2.5, taille * 0.07);
+  const r1 = taille * 0.28, r2 = taille * 0.36, r3 = taille * 0.44;
+  const gap = taille * 0.10;
+  const cy = r3 + ep;
+  const cx1 = r1 + ep;
+  const cx2 = cx1 + r1 + gap + r2;
+  const cx3 = cx2 + r2 + gap + r3;
+  const w = cx3 + r3 + ep;
+  const h = cy + r3 + ep;
+  const uid = React.useId().replace(/:/g, "");
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} fill="none">
+      <defs>
+        <linearGradient id={`${uid}a`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#FF8A3D"/><stop offset="100%" stopColor="#FF5C9D"/>
+        </linearGradient>
+        <linearGradient id={`${uid}b`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#FF5C9D"/><stop offset="100%" stopColor="#C65CE8"/>
+        </linearGradient>
+        <linearGradient id={`${uid}c`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor="#C65CE8"/><stop offset="100%" stopColor="#4D7CFF"/>
+        </linearGradient>
+      </defs>
+      <circle cx={cx1} cy={cy} r={r1} stroke={`url(#${uid}a)`} strokeWidth={ep}/>
+      <circle cx={cx2} cy={cy} r={r2} stroke={`url(#${uid}b)`} strokeWidth={ep * 1.1}/>
+      <circle cx={cx3} cy={cy} r={r3} stroke={`url(#${uid}c)`} strokeWidth={ep * 1.2}/>
+    </svg>
+  );
+}
 function Avatar({ membre, taille = 38 }) {
   const base = { width: taille, height: taille, borderRadius: "50%", flexShrink: 0, objectFit: "cover" };
   if (membre?.photo) return <img src={membre.photo} alt={membre.prenom} style={base} />;
@@ -279,8 +313,10 @@ function EcranBienvenue({ creerMoi }) {
   const [photo, setPhoto] = useState(null);
   return (
     <div style={{ ...S.ecran, justifyContent: "center" }}>
-      <div style={{ fontSize: 56, textAlign: "center" }}>🎉</div>
-      <h1 style={{ ...S.titrePage, textAlign: "center" }}>Capsule</h1>
+      <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+        <LogoBlooom taille={52} />
+      </div>
+      <h1 style={{ ...S.titrePage, textAlign: "center" }}>Blooom</h1>
       <p style={{ ...S.aide, textAlign: "center", marginBottom: 20 }}>
         Créez une capsule, invitez qui vous voulez, scellez vos souvenirs ensemble.
       </p>
@@ -1052,8 +1088,10 @@ function EcranConnexion() {
   return (
     <CadreTelephone>
       <div style={{ ...S.ecran, justifyContent: "center" }}>
-        <div style={{ fontSize: 56, textAlign: "center" }}>🎁</div>
-        <h1 style={{ ...S.titrePage, textAlign: "center" }}>Capsule</h1>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
+          <LogoBlooom taille={52} />
+        </div>
+        <h1 style={{ ...S.titrePage, textAlign: "center" }}>Blooom</h1>
         <p style={{ ...S.aide, textAlign: "center", marginBottom: 24 }}>
           Entrez votre adresse e-mail pour recevoir un lien de connexion.
         </p>
