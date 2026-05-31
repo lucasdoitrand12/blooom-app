@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "TEAM_ID.fr.blooom.app",
+        "paths": ["/rejoindre", "/rejoindre/*"]
+      }
+    ]
+  }
+}

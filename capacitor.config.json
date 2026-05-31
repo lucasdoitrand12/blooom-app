@@ -1,5 +1,16 @@
 {
   "appId": "fr.blooom.app",
   "appName": "Blooom",
-  "webDir": "dist"
+  "webDir": "dist",
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  },
+  "ios": {
+    "preferredContentMode": "mobile"
+  },
+  "server": {
+    "androidScheme": "https"
+  }
 }

@@ -22,3 +22,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Sensitive Firebase config (never commit these)
+google-services.json
+GoogleService-Info.plist
+
+# Android build artifacts
+android/.gradle
+android/app/build
+android/build
+
+# iOS build artifacts
+ios/App/build
+ios/App/DerivedData
+ios/Pods
+
+# Supabase secrets
+supabase/.env
