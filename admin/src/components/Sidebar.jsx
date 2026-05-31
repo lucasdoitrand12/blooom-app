@@ -11,6 +11,7 @@ const NAV = [
   { id:'content',       label:'Contenu app',     icon:'✦' },
   { id:'analytics',     label:'Analytics',       icon:'◌' },
   { id:'moderation',    label:'Modération',      icon:'◉' },
+  { id:'parrainage',    label:'Parrainage',      icon:'✦' },
   { id:'settings',      label:'Paramètres',      icon:'⊕' },
 ];
 

@@ -12,6 +12,7 @@ import Content from './pages/Content';
 import Analytics from './pages/Analytics';
 import Moderation from './pages/Moderation';
 import Settings from './pages/Settings';
+import Parrainage from './pages/Parrainage';
 
 // Contexte partagé : session admin + helpers navigation
 export const AdminCtx = createContext(null);
@@ -107,6 +108,7 @@ export default function App() {
     dashboard: Dashboard, users: Users, capsules: Capsules,
     souvenirs: Souvenirs, notifications: Notifications, content: Content,
     analytics: Analytics, moderation: Moderation, settings: Settings,
+    parrainage: Parrainage,
   };
   const PageComponent = PAGES[page] || Dashboard;
 

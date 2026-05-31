@@ -378,6 +378,9 @@ function normaliserProfil(p) {
     description: p.description || "",
     photo: p.photo_url || null,
     couleur: p.couleur || COULEURS_AVATAR[0],
+    // Parrainage
+    codeParrain:   p.code_parrain   || null,
+    plusExpiresAt: p.plus_expires_at || null,
   };
 }
 
@@ -1164,16 +1167,64 @@ function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirN
 //  ÉCRAN PROFIL : votre identité globale (réutilisée comme participant).
 // ============================================================================
 function EcranProfil({ moi, capsules, modifierMoi }) {
-  const [prenom, setPrenom] = useState(moi.prenom);
+  const [prenom, setPrenom]       = useState(moi.prenom);
   const [description, setDescription] = useState(moi.description || "");
-  const [photo, setPhoto] = useState(moi.photo || null);
+  const [photo, setPhoto]         = useState(moi.photo || null);
   const [enregistre, setEnregistre] = useState(false);
+
+  // Stats parrainage chargées depuis Supabase
+  const [statsParrainage, setStatsParrainage] = useState(null);
+  const [copie, setCopie] = useState(false);
+
+  const lienParrainage = moi.codeParrain
+    ? `https://blooom.app/rejoindre?parrain=${moi.codeParrain}`
+    : null;
+
+  // Charge les statistiques de parrainage de l'utilisateur
+  React.useEffect(() => {
+    if (!moi.id) return;
+    supabase
+      .from("parrainages")
+      .select("id, converti")
+      .eq("parrain_id", moi.id)
+      .then(({ data }) => {
+        if (!data) return;
+        const total     = data.length;
+        const convertis = data.filter(p => p.converti).length;
+        setStatsParrainage({ total, convertis });
+      });
+  }, [moi.id]);
 
   async function enregistrer() {
     await modifierMoi({ prenom: prenom.trim(), description: description.trim(), photo });
     setEnregistre(true);
     setTimeout(() => setEnregistre(false), 2000);
   }
+
+  // Partage via Web Share API (mobile) ou copie dans le presse-papiers
+  function partagerLienParrainage() {
+    if (!lienParrainage) return;
+    if (navigator.share) {
+      navigator.share({
+        title: "Rejoins-moi sur Blooom 🌸",
+        text: "Crée une capsule temporelle avec moi. Tu recevras 1 mois de Plus offert !",
+        url: lienParrainage,
+      }).catch(() => {});
+    } else {
+      copierLienParrainage();
+    }
+  }
+
+  function copierLienParrainage() {
+    if (!lienParrainage) return;
+    navigator.clipboard.writeText(lienParrainage).then(() => {
+      setCopie(true);
+      setTimeout(() => setCopie(false), 2000);
+    }).catch(() => {});
+  }
+
+  const plusActif = moi.plusExpiresAt && new Date(moi.plusExpiresAt) > new Date();
+
   return (
     <div style={S.ecran}>
       <div style={S.enteteAccueil}>
@@ -1192,6 +1243,62 @@ function EcranProfil({ moi, capsules, modifierMoi }) {
       </button>
       {enregistre && <p style={{ ...S.aide, color: "#2E7D55", textAlign: "center" }}>✓ Enregistré</p>}
       <p style={S.aide}>Ces informations vous représentent quand vous créez ou rejoignez une capsule.</p>
+
+      {/* ── Section parrainage ── */}
+      <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${COULEURS.bordure}` }}>
+        <p style={{ ...S.label, marginTop: 0 }}>🎁 Parrainer un ami</p>
+        <p style={{ ...S.aide, marginBottom: 16 }}>
+          Invitez un ami. S'il crée une capsule dans les 7 jours, vous recevez tous les deux 1 mois de Blooom Plus offert.
+        </p>
+
+        {/* Statut Blooom Plus si actif */}
+        {plusActif && (
+          <div style={{ background: "linear-gradient(135deg,#FF8A3D18,#FF5C9D18)", border: `1px solid ${COULEURS.corail}40`, borderRadius: 14, padding: "10px 14px", marginBottom: 14, textAlign: "center" }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: COULEURS.corail }}>
+              ✨ Blooom Plus actif jusqu'au {new Date(moi.plusExpiresAt).toLocaleDateString("fr-FR")}
+            </p>
+          </div>
+        )}
+
+        {/* Code parrain en grand */}
+        {moi.codeParrain && (
+          <div style={S.blocCode}>
+            <p style={S.codeLabel}>Votre code parrain</p>
+            <p style={S.codeValeur}>{moi.codeParrain}</p>
+            <p style={{ fontSize: 12, color: COULEURS.doux, wordBreak: "break-all", margin: 0, lineHeight: 1.4 }}>
+              {lienParrainage}
+            </p>
+          </div>
+        )}
+
+        {/* Bouton partager */}
+        <button style={S.boutonPrincipal} onClick={partagerLienParrainage}>
+          📤 Partager mon lien
+        </button>
+        <button style={{ ...S.boutonSecondaire, marginTop: 10 }} onClick={copierLienParrainage}>
+          {copie ? "✓ Copié !" : "📋 Copier le lien"}
+        </button>
+
+        {/* Stats parrainage */}
+        {statsParrainage && (
+          <div style={{ ...S.statsLigne, marginTop: 16 }}>
+            <div style={S.statBloc}>
+              <div style={S.statChiffre}>{statsParrainage.total}</div>
+              <div style={S.statLabel}>ami(s) parrainé(s)</div>
+            </div>
+            <div style={S.statBloc}>
+              <div style={S.statChiffre}>{statsParrainage.convertis}</div>
+              <div style={S.statLabel}>ont créé une capsule</div>
+            </div>
+            <div style={S.statBloc}>
+              <div style={{ ...S.statChiffre, background: DEGRADE, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                {statsParrainage.convertis}
+              </div>
+              <div style={S.statLabel}>mois de Plus gagnés</div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -4275,6 +4382,15 @@ export default function App() {
     return () => { listeners.forEach(l => l.remove()); };
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Capture le code parrain depuis l'URL web au premier chargement (?parrain=XXXXXXXX)
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const parrain = params.get("parrain");
+      if (parrain) localStorage.setItem("blooom_parrain", parrain.toUpperCase());
+    } catch {}
+  }, []);
+
   // Gère les Universal Links / App Links (lien d'invitation ouvert depuis le téléphone)
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
@@ -4285,6 +4401,9 @@ export default function App() {
         const parsed = new URL(url);
         const code = (parsed.searchParams.get("code") || parsed.pathname.split("/").pop() || "").toUpperCase();
         if (code.length >= 5) { setCodePrefill(code); allerVers("rejoindre"); }
+        // Capture aussi le code parrain dans les deep links
+        const parrain = parsed.searchParams.get("parrain");
+        if (parrain) localStorage.setItem("blooom_parrain", parrain.toUpperCase());
       } catch {}
     }).then(l => { handler = l; });
 
@@ -4439,6 +4558,21 @@ export default function App() {
       id: session.user.id, prenom, description, photo_url, couleur: COULEURS_AVATAR[0],
     }).select().single();
     if (data) setMoi(normaliserProfil(data));
+
+    // Enregistre le parrainage si l'utilisateur est arrivé via un lien parrain
+    const codeParrain = localStorage.getItem("blooom_parrain");
+    if (codeParrain) {
+      const { data: profil } = await supabase
+        .from("profiles").select("id").eq("code_parrain", codeParrain).maybeSingle();
+      // On vérifie que le parrain existe et que ce n'est pas l'utilisateur lui-même
+      if (profil && profil.id !== session.user.id) {
+        await supabase.from("parrainages").insert({
+          parrain_id: profil.id,
+          filleul_id: session.user.id,
+        });
+      }
+      localStorage.removeItem("blooom_parrain");
+    }
   }
 
   async function modifierMoi(champs) {
@@ -4476,6 +4610,33 @@ export default function App() {
     });
     if (errParticipant) throw new Error("Participant : " + errParticipant.message);
     await chargerDonnees();
+
+    // Conversion parrainage : si c'est la première capsule créée par l'utilisateur
+    // et qu'un parrainage non converti existe et a moins de 7 jours
+    const premiereCapsule = capsules.filter(c => c.createurId === session.user.id).length === 0;
+    if (premiereCapsule) {
+      const { data: parrainage } = await supabase
+        .from("parrainages")
+        .select("id, parrain_id, created_at")
+        .eq("filleul_id", session.user.id)
+        .eq("converti", false)
+        .maybeSingle();
+
+      if (parrainage) {
+        const joursDepuis = (Date.now() - new Date(parrainage.created_at).getTime()) / 86_400_000;
+        if (joursDepuis <= 7) {
+          // Marque le parrainage comme converti
+          await supabase.from("parrainages").update({
+            converti: true, converti_at: new Date().toISOString(),
+          }).eq("id", parrainage.id);
+          // Ajoute 30 jours de Plus au parrain (RPC SECURITY DEFINER)
+          await supabase.rpc("ajouter_plus_parrain", { p_parrain_id: parrainage.parrain_id });
+          // Recharge le profil pour mettre à jour plusExpiresAt si c'est le filleul lui-même
+          chargerDonnees();
+        }
+      }
+    }
+
     return capsuleId;
   }
 
