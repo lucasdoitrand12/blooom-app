@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Bienvenue dans Blooom 🌸</title>
+  <!--
+    EMAIL 1 — BIENVENUE
+    Edge Function : supabase/functions/on-signup/index.ts
+    Déclencheur   : INSERT sur auth.users (Database Webhook ou trigger after_signup)
+    Variables     : {{prenom}}, {{email}}, {{unsubscribeToken}}
+    Resend :
+      await resend.emails.send({
+        from: 'Blooom <hello@blooom.app>',
+        to: [email],
+        subject: 'Bienvenue dans Blooom 🌸',
+        html: template
+          .replace(/\{\{prenom\}\}/g, prenom)
+          .replace(/\{\{unsubscribeToken\}\}/g, token),
+      })
+  -->
+</head>
+<body style="margin:0;padding:0;background-color:#F4EEE2;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4EEE2;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.08);">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D 0%,#FF5C9D 55%,#C65CE8 100%);padding:40px 40px 36px;text-align:center;">
+              <div style="font-size:36px;font-weight:800;color:#ffffff;letter-spacing:-1px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;line-height:1;">Blooom</div>
+              <div style="margin-top:8px;font-size:14px;color:rgba(255,255,255,0.85);font-weight:500;letter-spacing:0.06em;text-transform:uppercase;">Scelle. Attends. Souris.</div>
+              <div style="margin-top:24px;font-size:48px;line-height:1;">🌸</div>
+            </td>
+          </tr>
+
+          <!-- BODY -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+
+              <h1 style="margin:0 0 16px;font-size:26px;font-weight:700;color:#1A1A2E;line-height:1.3;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Bonjour <span style="color:#FF5C9D;">{{prenom}}</span>,
+              </h1>
+
+              <p style="margin:0 0 8px;font-size:16px;color:#4B5563;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Vous faites maintenant partie de <strong style="color:#1A1A2E;">Blooom</strong>.
+              </p>
+              <p style="margin:0 0 8px;font-size:16px;color:#4B5563;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Blooom vous permet de créer des capsules temporelles avec vos proches — des coffres-forts numériques où chacun dépose ses souvenirs, et qu'on rouvre ensemble à une date choisie.
+              </p>
+              <p style="margin:0 0 32px;font-size:16px;color:#4B5563;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Un mariage, une naissance, une année scolaire, un voyage — certains moments méritent d'être scellés pour mieux les revivre.
+              </p>
+
+              <!-- CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 40px;">
+                <tr>
+                  <td style="border-radius:50px;background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D,#FF5C9D);">
+                    <a href="https://blooom.app" style="display:inline-block;padding:16px 40px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Créer ma première capsule →</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Section title -->
+              <p style="margin:0 0 20px;font-size:12px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Ce que vous pouvez faire</p>
+
+              <!-- Feature 1 -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:20px;">
+                <tr>
+                  <td style="width:56px;vertical-align:top;padding-right:16px;">
+                    <div style="width:48px;height:48px;background-color:#FFF0E8;background:linear-gradient(135deg,#FFF0E8,#FFE4EF);border-radius:14px;text-align:center;line-height:48px;font-size:22px;">📦</div>
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <div style="font-size:15px;font-weight:600;color:#1A1A2E;margin-bottom:3px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Créer une capsule</div>
+                    <div style="font-size:14px;color:#6B7280;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Choisissez une occasion, une date d'ouverture, et invitez vos proches avec un code à 6 lettres.</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Feature 2 -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:20px;">
+                <tr>
+                  <td style="width:56px;vertical-align:top;padding-right:16px;">
+                    <div style="width:48px;height:48px;background-color:#FFF0E8;background:linear-gradient(135deg,#FFF0E8,#FFE4EF);border-radius:14px;text-align:center;line-height:48px;font-size:22px;">✍️</div>
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <div style="font-size:15px;font-weight:600;color:#1A1A2E;margin-bottom:3px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Déposer des souvenirs</div>
+                    <div style="font-size:14px;color:#6B7280;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Messages, photos, vidéos, questions secrètes, paris entre amis — tout ce qui compte vraiment.</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Feature 3 -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:36px;">
+                <tr>
+                  <td style="width:56px;vertical-align:top;padding-right:16px;">
+                    <div style="width:48px;height:48px;background-color:#FFF0E8;background:linear-gradient(135deg,#FFF0E8,#FFE4EF);border-radius:14px;text-align:center;line-height:48px;font-size:22px;">🎉</div>
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <div style="font-size:15px;font-weight:600;color:#1A1A2E;margin-bottom:3px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Rouvrir ensemble</div>
+                    <div style="font-size:14px;color:#6B7280;line-height:1.5;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Le jour venu, redécouvrez tous les souvenirs en groupe. La surprise vaut toujours l'attente.</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- PS -->
+              <div style="border-top:1px solid #F3F4F6;padding-top:24px;">
+                <p style="margin:0;font-size:13px;color:#9CA3AF;line-height:1.7;font-style:italic;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                  PS — Blooom ne vous enverra jamais de spam. Seulement des nouvelles qui comptent.
+                </p>
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color:#FAF5EE;padding:28px 40px;text-align:center;border-top:1px solid #F3E8D8;">
+              <div style="margin-bottom:12px;">
+                <span style="font-size:20px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;"><span style="color:#1A1A2E;">Bl</span><span style="color:#FF8A3D;">o</span><span style="color:#FF5C9D;">o</span><span style="color:#C65CE8;">o</span><span style="color:#1A1A2E;">m</span></span>
+              </div>
+              <p style="margin:0 0 6px;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">© 2026 Blooom · Tous droits réservés</p>
+              <p style="margin:0;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <a href="https://blooom.app/confidentialite" style="color:#C9986A;text-decoration:none;">Confidentialité</a>
+                &nbsp;·&nbsp;
+                <a href="https://blooom.app/unsubscribe?token={{unsubscribeToken}}" style="color:#C9986A;text-decoration:none;">Se désabonner</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

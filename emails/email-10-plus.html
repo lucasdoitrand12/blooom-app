@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Bienvenue dans Blooom Plus ✨</title>
+  <!--
+    EMAIL 10 — CONFIRMATION D'ABONNEMENT PLUS
+    Edge Function : supabase/functions/on-subscription/index.ts
+    Déclencheur   : Webhook Stripe — event "customer.subscription.created" ou "invoice.payment_succeeded"
+    Variables     : {{prenom}}, {{email}}, {{plan}}, {{dateAbonnement}}, {{dateRenouvellement}},
+                    {{montant}}, {{unsubscribeToken}}
+    Note          : {{plan}} = "Plus" | "Famille"
+                    {{montant}} = ex. "3,99 €/mois" ou "9,99 €/mois"
+    Resend :
+      await resend.emails.send({
+        from: 'Blooom <hello@blooom.app>',
+        to: [email],
+        subject: 'Bienvenue dans Blooom Plus ✨',
+        html: buildTemplate(template, { prenom, email, plan, dateAbonnement, dateRenouvellement, montant }),
+      })
+  -->
+</head>
+<body style="margin:0;padding:0;background-color:#F4EEE2;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4EEE2;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.08);">
+
+          <!-- HEADER premium -->
+          <tr>
+            <td style="background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D 0%,#FF5C9D 55%,#C65CE8 100%);padding:44px 40px;text-align:center;">
+              <div style="font-size:36px;font-weight:800;color:#ffffff;letter-spacing:-1px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;line-height:1;margin-bottom:6px;">Blooom</div>
+              <div style="display:inline-block;background-color:rgba(255,255,255,0.25);border-radius:50px;padding:4px 16px;margin-bottom:20px;">
+                <span style="font-size:13px;font-weight:700;color:#ffffff;letter-spacing:0.06em;text-transform:uppercase;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">✨ {{plan}}</span>
+              </div>
+              <div style="font-size:48px;line-height:1;">🌟</div>
+            </td>
+          </tr>
+
+          <!-- BODY -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+
+              <h1 style="margin:0 0 12px;font-size:26px;font-weight:700;color:#1A1A2E;line-height:1.3;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Bienvenue dans Blooom <span style="color:#FF5C9D;">{{plan}}</span>, <span style="color:#FF8A3D;">{{prenom}}</span> !
+              </h1>
+
+              <p style="margin:0 0 28px;font-size:16px;color:#4B5563;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Votre abonnement est actif. Tous vos nouveaux avantages sont disponibles immédiatement dans l'application.
+              </p>
+
+              <!-- Receipt box -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#FAF5EE;border-radius:14px;margin-bottom:32px;">
+                <tr>
+                  <td style="padding:24px 28px;">
+
+                    <div style="font-size:12px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Récapitulatif de votre abonnement</div>
+
+                    <!-- Ligne plan -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:12px;">
+                      <tr>
+                        <td style="font-size:14px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Plan</td>
+                        <td style="text-align:right;font-size:14px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Blooom {{plan}}</td>
+                      </tr>
+                    </table>
+
+                    <!-- Ligne montant -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:12px;">
+                      <tr>
+                        <td style="font-size:14px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Montant</td>
+                        <td style="text-align:right;font-size:14px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{montant}}</td>
+                      </tr>
+                    </table>
+
+                    <!-- Ligne date début -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:12px;">
+                      <tr>
+                        <td style="font-size:14px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Début</td>
+                        <td style="text-align:right;font-size:14px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{dateAbonnement}}</td>
+                      </tr>
+                    </table>
+
+                    <!-- Ligne renouvellement -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-top:1px solid #F0E8D8;padding-top:12px;">
+                      <tr>
+                        <td style="padding-top:12px;font-size:14px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Prochain renouvellement</td>
+                        <td style="padding-top:12px;text-align:right;font-size:14px;font-weight:600;color:#FF8A3D;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{dateRenouvellement}}</td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Features unlocked -->
+              <p style="margin:0 0 16px;font-size:12px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Vos nouveaux avantages</p>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:32px;">
+                <tr>
+                  <td style="padding-bottom:14px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+                      <tr>
+                        <td style="width:32px;vertical-align:top;padding-right:12px;padding-top:1px;">
+                          <div style="width:24px;height:24px;background-color:#ECFDF5;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:700;color:#10B981;">✓</div>
+                        </td>
+                        <td style="vertical-align:top;">
+                          <div style="font-size:15px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Capsules illimitées</div>
+                          <div style="font-size:13px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Créez autant de capsules que vous voulez, sans limite.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom:14px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+                      <tr>
+                        <td style="width:32px;vertical-align:top;padding-right:12px;padding-top:1px;">
+                          <div style="width:24px;height:24px;background-color:#ECFDF5;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:700;color:#10B981;">✓</div>
+                        </td>
+                        <td style="vertical-align:top;">
+                          <div style="font-size:15px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Participants illimités</div>
+                          <div style="font-size:13px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Invitez toute la famille, tous les amis, sans restriction.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding-bottom:14px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+                      <tr>
+                        <td style="width:32px;vertical-align:top;padding-right:12px;padding-top:1px;">
+                          <div style="width:24px;height:24px;background-color:#ECFDF5;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:700;color:#10B981;">✓</div>
+                        </td>
+                        <td style="vertical-align:top;">
+                          <div style="font-size:15px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Vidéos HD jusqu'à 500 Mo</div>
+                          <div style="font-size:13px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Partagez des moments en pleine qualité, sans compromis.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+                      <tr>
+                        <td style="width:32px;vertical-align:top;padding-right:12px;padding-top:1px;">
+                          <div style="width:24px;height:24px;background-color:#ECFDF5;border-radius:50%;text-align:center;line-height:24px;font-size:12px;font-weight:700;color:#10B981;">✓</div>
+                        </td>
+                        <td style="vertical-align:top;">
+                          <div style="font-size:15px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Thèmes exclusifs</div>
+                          <div style="font-size:13px;color:#6B7280;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Personnalisez l'apparence de chaque capsule avec des thèmes uniques.</div>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 28px;">
+                <tr>
+                  <td style="border-radius:50px;background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D,#FF5C9D);">
+                    <a href="https://blooom.app" style="display:inline-block;padding:16px 40px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Découvrir mes nouveaux avantages →</a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0;font-size:13px;color:#9CA3AF;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Vous pouvez gérer ou annuler votre abonnement à tout moment dans Réglages → Abonnement.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color:#FAF5EE;padding:28px 40px;text-align:center;border-top:1px solid #F3E8D8;">
+              <div style="margin-bottom:12px;">
+                <span style="font-size:20px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;"><span style="color:#1A1A2E;">Bl</span><span style="color:#FF8A3D;">o</span><span style="color:#FF5C9D;">o</span><span style="color:#C65CE8;">o</span><span style="color:#1A1A2E;">m</span></span>
+              </div>
+              <p style="margin:0 0 6px;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">© 2026 Blooom · Cet email a été envoyé à {{email}}</p>
+              <p style="margin:0;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <a href="https://blooom.app/confidentialite" style="color:#C9986A;text-decoration:none;">Confidentialité</a>
+                &nbsp;·&nbsp;
+                <a href="https://blooom.app/unsubscribe?token={{unsubscribeToken}}" style="color:#C9986A;text-decoration:none;">Se désabonner</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

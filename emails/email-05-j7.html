@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Plus que 7 jours 🌸 Avez-vous déposé votre souvenir ?</title>
+  <!--
+    EMAIL 5 — COMPTE À REBOURS J-7
+    Edge Function : supabase/functions/check_countdowns/index.ts
+    Déclencheur   : Cron quotidien — sélectionne capsules avec dateOuverture = TODAY + 7 jours
+    Variables     : {{prenom}}, {{nomCapsule}}, {{dateOuverture}}, {{aDepose}},
+                    {{capsuleId}}, {{unsubscribeToken}}
+    Note          : {{aDepose}} = boolean — afficher le message d'urgence personnalisé si false
+    Resend :
+      await resend.emails.send({
+        from: 'Blooom <hello@blooom.app>',
+        to: [participant.email],
+        subject: 'Plus que 7 jours 🌸 Avez-vous déposé votre souvenir ?',
+        html: buildTemplate(template, { prenom, nomCapsule, dateOuverture, aDepose, capsuleId }),
+      })
+  -->
+</head>
+<body style="margin:0;padding:0;background-color:#F4EEE2;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4EEE2;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.08);">
+
+          <!-- HEADER — plus urgent, accent chaud -->
+          <tr>
+            <td style="background-color:#FF5C00;background:linear-gradient(135deg,#FF6B1A 0%,#FF3D7F 100%);padding:40px 40px 36px;text-align:center;">
+              <div style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-1px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;margin-bottom:20px;">Blooom</div>
+              <!-- Grand chiffre urgent -->
+              <div style="display:inline-block;background-color:rgba(255,255,255,0.2);border-radius:24px;padding:16px 48px;">
+                <div style="font-size:80px;font-weight:800;color:#ffffff;line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">7</div>
+                <div style="font-size:16px;color:rgba(255,255,255,0.9);font-weight:600;margin-top:4px;letter-spacing:0.04em;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">jours restants</div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- BODY -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+
+              <h1 style="margin:0 0 12px;font-size:24px;font-weight:700;color:#1A1A2E;line-height:1.3;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                🌸 Plus que 7 jours, <span style="color:#FF5C9D;">{{prenom}}</span>
+              </h1>
+
+              <p style="margin:0 0 24px;font-size:16px;color:#4B5563;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Dans 7 jours, <strong style="color:#1A1A2E;">{{nomCapsule}}</strong> s'ouvre le <strong style="color:#FF8A3D;">{{dateOuverture}}</strong>. Après ça, il ne sera plus possible d'ajouter ou de modifier un souvenir.
+              </p>
+
+              <!-- Message conditionnel si l'utilisateur n'a pas déposé -->
+              <!-- SI {{aDepose}} === false, afficher ce bloc : -->
+              <div style="background-color:#FFF5F0;border:1px solid #FFD4B8;border-radius:14px;padding:20px 24px;margin-bottom:28px;">
+                <p style="margin:0;font-size:15px;color:#C2410C;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                  ⚠️ &nbsp;<strong>Vous n'avez pas encore déposé de souvenir.</strong><br>
+                  <span style="font-size:14px;color:#9A3412;">Il vous reste 7 jours. Chaque souvenir compte.</span>
+                </p>
+              </div>
+              <!-- FIN bloc conditionnel -->
+
+              <!-- CTA urgent -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 36px;">
+                <tr>
+                  <td style="border-radius:50px;background-color:#FF6B1A;background:linear-gradient(135deg,#FF6B1A,#FF3D7F);">
+                    <a href="https://blooom.app/capsule/{{capsuleId}}" style="display:inline-block;padding:18px 44px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Déposer maintenant →</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- What can I deposit -->
+              <p style="margin:0 0 16px;font-size:12px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Idées de souvenirs</p>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#FAF5EE;border-radius:14px;margin-bottom:28px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+                      <tr>
+                        <td style="width:50%;vertical-align:top;padding-right:12px;padding-bottom:12px;">
+                          <p style="margin:0;font-size:14px;color:#4B5563;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">✍️ &nbsp;Un message du futur</p>
+                        </td>
+                        <td style="width:50%;vertical-align:top;padding-bottom:12px;">
+                          <p style="margin:0;font-size:14px;color:#4B5563;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">📸 &nbsp;Une photo marquante</p>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="width:50%;vertical-align:top;padding-right:12px;">
+                          <p style="margin:0;font-size:14px;color:#4B5563;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">❓ &nbsp;Une question secrète</p>
+                        </td>
+                        <td style="width:50%;vertical-align:top;">
+                          <p style="margin:0;font-size:14px;color:#4B5563;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">🎯 &nbsp;Un pari entre amis</p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Final note -->
+              <p style="margin:0;font-size:13px;color:#9CA3AF;line-height:1.6;font-style:italic;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Après l'ouverture, {{nomCapsule}} sera en lecture seule. Profitez de ces 7 jours.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color:#FAF5EE;padding:28px 40px;text-align:center;border-top:1px solid #F3E8D8;">
+              <div style="margin-bottom:12px;">
+                <span style="font-size:20px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;"><span style="color:#1A1A2E;">Bl</span><span style="color:#FF8A3D;">o</span><span style="color:#FF5C9D;">o</span><span style="color:#C65CE8;">o</span><span style="color:#1A1A2E;">m</span></span>
+              </div>
+              <p style="margin:0 0 6px;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">© 2026 Blooom · Tous droits réservés</p>
+              <p style="margin:0;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <a href="https://blooom.app/confidentialite" style="color:#C9986A;text-decoration:none;">Confidentialité</a>
+                &nbsp;·&nbsp;
+                <a href="https://blooom.app/unsubscribe?token={{unsubscribeToken}}" style="color:#C9986A;text-decoration:none;">Se désabonner</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

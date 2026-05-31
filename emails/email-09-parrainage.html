@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>{{prenomParrain}} vous offre 1 mois de Blooom Plus 🎁</title>
+  <!--
+    EMAIL 9 — PARRAINAGE
+    Edge Function : supabase/functions/on-referral/index.ts
+    Déclencheur   : INSERT sur referrals (quand un utilisateur partage son lien de parrainage)
+    Variables     : {{prenomParrain}}, {{prenom}}, {{referralCode}}, {{dateExpiration}},
+                    {{unsubscribeToken}}
+    Note          : {{dateExpiration}} = TODAY + 7 jours (délai pour créer sa première capsule)
+                    {{referralCode}} = code unique du parrain à passer dans l'URL d'inscription
+    Resend :
+      await resend.emails.send({
+        from: 'Blooom <hello@blooom.app>',
+        to: [emailFilleul],
+        subject: `${prenomParrain} vous offre 1 mois de Blooom Plus 🎁`,
+        html: buildTemplate(template, { prenomParrain, prenom, referralCode, dateExpiration }),
+      })
+  -->
+</head>
+<body style="margin:0;padding:0;background-color:#F4EEE2;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4EEE2;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.08);">
+
+          <!-- HEADER cadeau -->
+          <tr>
+            <td style="background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D 0%,#FF5C9D 55%,#C65CE8 100%);padding:44px 40px;text-align:center;">
+              <div style="font-size:36px;font-weight:800;color:#ffffff;letter-spacing:-1px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;line-height:1;margin-bottom:16px;">Blooom</div>
+              <div style="font-size:56px;line-height:1;">🎁</div>
+              <div style="margin-top:12px;font-size:16px;font-weight:600;color:rgba(255,255,255,0.9);font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Un cadeau vous attend</div>
+            </td>
+          </tr>
+
+          <!-- BODY -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+
+              <h1 style="margin:0 0 12px;font-size:24px;font-weight:700;color:#1A1A2E;line-height:1.3;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <span style="color:#FF5C9D;">{{prenomParrain}}</span> vous offre 1 mois de Blooom Plus
+              </h1>
+
+              <p style="margin:0 0 28px;font-size:16px;color:#4B5563;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Bonjour <strong style="color:#1A1A2E;">{{prenom}}</strong>, votre ami(e) {{prenomParrain}} vous a parrainé(e) sur Blooom. Créez votre première capsule dans les <strong style="color:#FF8A3D;">7 jours</strong> et recevez 1 mois de Blooom Plus offert.
+              </p>
+
+              <!-- Offer box -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#FFF5E8;border:2px solid #FFD4A8;border-radius:16px;margin-bottom:32px;">
+                <tr>
+                  <td style="padding:24px 28px;text-align:center;">
+                    <div style="font-size:13px;font-weight:600;color:#9A3412;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Votre offre exclusive</div>
+                    <div style="font-size:36px;font-weight:800;color:#FF8A3D;line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">1 mois gratuit</div>
+                    <div style="font-size:14px;color:#6B7280;margin-top:6px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">de Blooom Plus · offert par {{prenomParrain}}</div>
+                    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #FFD4A8;">
+                      <div style="font-size:13px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">⏰ &nbsp;Offre valable jusqu'au <strong style="color:#FF8A3D;">{{dateExpiration}}</strong></div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 40px;">
+                <tr>
+                  <td style="border-radius:50px;background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D,#FF5C9D);">
+                    <a href="https://blooom.app/inscription?ref={{referralCode}}" style="display:inline-block;padding:18px 44px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Accepter le cadeau →</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Qu'est-ce que Blooom Plus -->
+              <p style="margin:0 0 16px;font-size:12px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Ce qu'inclut Blooom Plus</p>
+
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#FAF5EE;border-radius:14px;margin-bottom:28px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+                      <tr>
+                        <td style="padding-bottom:12px;">
+                          <span style="font-size:14px;color:#4B5563;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">✅ &nbsp;<strong style="color:#1A1A2E;">Capsules illimitées</strong> — sans restriction de nombre</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom:12px;">
+                          <span style="font-size:14px;color:#4B5563;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">✅ &nbsp;<strong style="color:#1A1A2E;">Participants illimités</strong> par capsule</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding-bottom:12px;">
+                          <span style="font-size:14px;color:#4B5563;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">✅ &nbsp;<strong style="color:#1A1A2E;">Vidéos HD</strong> jusqu'à 500 Mo par souvenir</span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>
+                          <span style="font-size:14px;color:#4B5563;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">✅ &nbsp;<strong style="color:#1A1A2E;">Thèmes exclusifs</strong> pour personnaliser vos capsules</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0;font-size:13px;color:#9CA3AF;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Aucune carte bancaire requise pour activer l'offre. Annulez à tout moment.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color:#FAF5EE;padding:28px 40px;text-align:center;border-top:1px solid #F3E8D8;">
+              <div style="margin-bottom:12px;">
+                <span style="font-size:20px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;"><span style="color:#1A1A2E;">Bl</span><span style="color:#FF8A3D;">o</span><span style="color:#FF5C9D;">o</span><span style="color:#C65CE8;">o</span><span style="color:#1A1A2E;">m</span></span>
+              </div>
+              <p style="margin:0 0 6px;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">© 2026 Blooom · Tous droits réservés</p>
+              <p style="margin:0;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <a href="https://blooom.app/confidentialite" style="color:#C9986A;text-decoration:none;">Confidentialité</a>
+                &nbsp;·&nbsp;
+                <a href="https://blooom.app/unsubscribe?token={{unsubscribeToken}}" style="color:#C9986A;text-decoration:none;">Se désabonner</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

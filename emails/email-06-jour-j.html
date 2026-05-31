@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>🎉 Aujourd'hui, {{nomCapsule}} s'ouvre !</title>
+  <style>
+    /* Confetti — progressive enhancement (Gmail desktop, Apple Mail) */
+    @keyframes confettiFall {
+      0%   { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(60px) rotate(720deg); opacity: 0; }
+    }
+    .confetti-piece {
+      display: inline-block;
+      animation: confettiFall 2s ease-in infinite;
+    }
+    .confetti-piece:nth-child(2) { animation-delay: 0.3s; }
+    .confetti-piece:nth-child(3) { animation-delay: 0.6s; }
+    .confetti-piece:nth-child(4) { animation-delay: 0.9s; }
+    .confetti-piece:nth-child(5) { animation-delay: 1.2s; }
+  </style>
+  <!--
+    EMAIL 6 — JOUR J (OUVERTURE)
+    Edge Function : supabase/functions/check_countdowns/index.ts
+    Déclencheur   : Cron quotidien — sélectionne capsules avec dateOuverture = TODAY
+                    Appel automatique de ouvrirCapsule() si pas encore ouverte
+    Variables     : {{prenom}}, {{nomCapsule}}, {{nbSouvenirs}}, {{nbParticipants}},
+                    {{capsuleId}}, {{unsubscribeToken}}
+    Resend :
+      for (const participant of capsule.participants) {
+        await resend.emails.send({
+          from: 'Blooom <hello@blooom.app>',
+          to: [participant.email],
+          subject: `🎉 Aujourd'hui, ${nomCapsule} s'ouvre !`,
+          html: buildTemplate(template, { prenom: participant.prenom, nomCapsule, nbSouvenirs, nbParticipants, capsuleId }),
+        })
+      }
+  -->
+</head>
+<body style="margin:0;padding:0;background-color:#F4EEE2;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4EEE2;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.08);">
+
+          <!-- HEADER festif avec confettis -->
+          <tr>
+            <td style="background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D 0%,#FF5C9D 50%,#C65CE8 100%);padding:44px 40px;text-align:center;">
+              <!-- Confettis statiques (toujours visibles) -->
+              <div style="font-size:28px;margin-bottom:12px;letter-spacing:4px;">
+                <span class="confetti-piece">🎊</span>
+                <span class="confetti-piece">✨</span>
+                <span class="confetti-piece">🎉</span>
+                <span class="confetti-piece">🌟</span>
+                <span class="confetti-piece">🎊</span>
+              </div>
+              <div style="font-size:36px;font-weight:800;color:#ffffff;letter-spacing:-1px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;line-height:1;">Blooom</div>
+              <div style="margin-top:16px;font-size:20px;font-weight:700;color:rgba(255,255,255,0.95);font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">C'est le grand jour ! 🎉</div>
+            </td>
+          </tr>
+
+          <!-- BODY -->
+          <tr>
+            <td style="padding:40px 40px 32px;text-align:center;">
+
+              <h1 style="margin:0 0 16px;font-size:28px;font-weight:700;color:#1A1A2E;line-height:1.3;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <span style="color:#FF5C9D;">{{nomCapsule}}</span><br>s'ouvre aujourd'hui
+              </h1>
+
+              <p style="margin:0 0 32px;font-size:16px;color:#4B5563;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Bonjour <strong style="color:#1A1A2E;">{{prenom}}</strong>, le moment est arrivé. Tous les souvenirs déposés par vos proches vous attendent. Ouvrez la capsule ensemble pour une surprise qui mérite l'attente.
+              </p>
+
+              <!-- Stats -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#FAF5EE;border-radius:16px;margin-bottom:36px;overflow:hidden;">
+                <tr>
+                  <td style="width:50%;padding:24px;text-align:center;border-right:1px solid #F0E8D8;">
+                    <div style="font-size:44px;font-weight:800;color:#FF8A3D;line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{nbSouvenirs}}</div>
+                    <div style="font-size:13px;color:#6B7280;margin-top:6px;font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">souvenirs déposés</div>
+                  </td>
+                  <td style="width:50%;padding:24px;text-align:center;">
+                    <div style="font-size:44px;font-weight:800;color:#FF5C9D;line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{nbParticipants}}</div>
+                    <div style="font-size:13px;color:#6B7280;margin-top:6px;font-weight:500;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">participants</div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA principal -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto 40px;">
+                <tr>
+                  <td style="border-radius:50px;background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D,#FF5C9D);">
+                    <a href="https://blooom.app/capsule/{{capsuleId}}" style="display:inline-block;padding:20px 52px;font-size:18px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Découvrir les souvenirs 🎁</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Quote finale -->
+              <div style="border-top:1px solid #F3F4F6;padding-top:28px;">
+                <p style="margin:0;font-size:22px;font-weight:700;color:#1A1A2E;line-height:1.4;font-style:italic;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                  "Scelle. Attends. <span style="color:#FF5C9D;">Souris.</span>"
+                </p>
+                <p style="margin:8px 0 0;font-size:13px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">— L'équipe Blooom</p>
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color:#FAF5EE;padding:28px 40px;text-align:center;border-top:1px solid #F3E8D8;">
+              <div style="margin-bottom:12px;">
+                <span style="font-size:20px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;"><span style="color:#1A1A2E;">Bl</span><span style="color:#FF8A3D;">o</span><span style="color:#FF5C9D;">o</span><span style="color:#C65CE8;">o</span><span style="color:#1A1A2E;">m</span></span>
+              </div>
+              <p style="margin:0 0 6px;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">© 2026 Blooom · Tous droits réservés</p>
+              <p style="margin:0;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <a href="https://blooom.app/confidentialite" style="color:#C9986A;text-decoration:none;">Confidentialité</a>
+                &nbsp;·&nbsp;
+                <a href="https://blooom.app/unsubscribe?token={{unsubscribeToken}}" style="color:#C9986A;text-decoration:none;">Se désabonner</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

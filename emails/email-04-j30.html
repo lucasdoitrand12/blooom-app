@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Plus que 30 jours ⏳ {{nomCapsule}} s'approche</title>
+  <!--
+    EMAIL 4 — COMPTE À REBOURS J-30
+    Edge Function : supabase/functions/check_countdowns/index.ts
+    Déclencheur   : Cron quotidien — sélectionne capsules avec dateOuverture = TODAY + 30 jours
+    Variables     : {{prenom}}, {{nomCapsule}}, {{dateOuverture}}, {{participants}},
+                    {{appURL}}, {{capsuleId}}, {{unsubscribeToken}}
+    Note          : {{participants}} est un tableau JSON : [{ prenom, initiales, aCotribue }]
+                    Générer les cercles d'initiales dynamiquement côté Edge Function.
+    Resend :
+      for (const participant of capsule.participants) {
+        await resend.emails.send({
+          from: 'Blooom <hello@blooom.app>',
+          to: [participant.email],
+          subject: `Plus que 30 jours ⏳ ${nomCapsule} s'approche`,
+          html: buildTemplate(template, { prenom: participant.prenom, ... }),
+        })
+      }
+  -->
+</head>
+<body style="margin:0;padding:0;background-color:#F4EEE2;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F4EEE2;">
+    <tr>
+      <td align="center" style="padding:40px 16px;">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.08);">
+
+          <!-- HEADER avec grand compte à rebours -->
+          <tr>
+            <td style="background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D 0%,#FF5C9D 55%,#C65CE8 100%);padding:40px 40px 36px;text-align:center;">
+              <div style="font-size:20px;font-weight:800;color:#ffffff;letter-spacing:-1px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;margin-bottom:20px;">Blooom</div>
+              <!-- Grand chiffre -->
+              <div style="display:inline-block;background-color:rgba(255,255,255,0.2);border-radius:24px;padding:16px 40px;">
+                <div style="font-size:72px;font-weight:800;color:#ffffff;line-height:1;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">30</div>
+                <div style="font-size:16px;color:rgba(255,255,255,0.9);font-weight:600;margin-top:4px;letter-spacing:0.04em;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">jours restants</div>
+              </div>
+            </td>
+          </tr>
+
+          <!-- BODY -->
+          <tr>
+            <td style="padding:40px 40px 32px;">
+
+              <h1 style="margin:0 0 12px;font-size:24px;font-weight:700;color:#1A1A2E;line-height:1.3;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                ⏳ La capsule <span style="color:#FF5C9D;">{{nomCapsule}}</span> s'approche
+              </h1>
+
+              <p style="margin:0 0 28px;font-size:16px;color:#4B5563;line-height:1.7;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Bonjour <strong style="color:#1A1A2E;">{{prenom}}</strong>, dans 30 jours la capsule <strong>{{nomCapsule}}</strong> s'ouvrira le <strong style="color:#FF8A3D;">{{dateOuverture}}</strong>. C'est le bon moment pour déposer vos derniers souvenirs avant qu'elle soit scellée.
+              </p>
+
+              <!-- CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 40px;">
+                <tr>
+                  <td style="border-radius:50px;background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D,#FF5C9D);">
+                    <a href="https://blooom.app/capsule/{{capsuleId}}" style="display:inline-block;padding:16px 40px;font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Déposer un souvenir →</a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Participants -->
+              <p style="margin:0 0 16px;font-size:12px;font-weight:600;color:#9CA3AF;text-transform:uppercase;letter-spacing:0.1em;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">Participants de la capsule</p>
+
+              <!-- Participant avatars — générés dynamiquement par l'Edge Function -->
+              <!-- Exemple statique ci-dessous à remplacer par une boucle -->
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;background-color:#FAF5EE;border-radius:14px;margin-bottom:32px;">
+                <tr>
+                  <td style="padding:20px 24px;">
+
+                    <!-- Participant 1 — a contribué -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:12px;">
+                      <tr>
+                        <td style="width:40px;vertical-align:middle;padding-right:12px;">
+                          <div style="width:36px;height:36px;background-color:#FF8A3D;background:linear-gradient(135deg,#FF8A3D,#FF5C9D);border-radius:50%;text-align:center;line-height:36px;font-size:14px;font-weight:700;color:#ffffff;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{initiales1}}</div>
+                        </td>
+                        <td style="vertical-align:middle;">
+                          <span style="font-size:14px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{prenom1}}</span>
+                        </td>
+                        <td style="vertical-align:middle;text-align:right;">
+                          <span style="font-size:12px;color:#10B981;font-weight:600;background-color:#ECFDF5;padding:3px 10px;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">✓ A contribué</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Participant 2 — n'a pas encore contribué -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;margin-bottom:12px;">
+                      <tr>
+                        <td style="width:40px;vertical-align:middle;padding-right:12px;">
+                          <div style="width:36px;height:36px;background-color:#E5E7EB;border-radius:50%;text-align:center;line-height:36px;font-size:14px;font-weight:700;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{initiales2}}</div>
+                        </td>
+                        <td style="vertical-align:middle;">
+                          <span style="font-size:14px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{prenom2}}</span>
+                        </td>
+                        <td style="vertical-align:middle;text-align:right;">
+                          <span style="font-size:12px;color:#9CA3AF;font-weight:600;background-color:#F3F4F6;padding:3px 10px;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">En attente</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Participant 3 -->
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+                      <tr>
+                        <td style="width:40px;vertical-align:middle;padding-right:12px;">
+                          <div style="width:36px;height:36px;background-color:#E5E7EB;border-radius:50%;text-align:center;line-height:36px;font-size:14px;font-weight:700;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{initiales3}}</div>
+                        </td>
+                        <td style="vertical-align:middle;">
+                          <span style="font-size:14px;font-weight:600;color:#1A1A2E;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">{{prenom3}}</span>
+                        </td>
+                        <td style="vertical-align:middle;text-align:right;">
+                          <span style="font-size:12px;color:#9CA3AF;font-weight:600;background-color:#F3F4F6;padding:3px 10px;border-radius:50px;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">En attente</span>
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0;font-size:13px;color:#9CA3AF;line-height:1.6;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                Vous recevrez un rappel dans 23 jours (J-7) si la capsule n'est pas encore complète.
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color:#FAF5EE;padding:28px 40px;text-align:center;border-top:1px solid #F3E8D8;">
+              <div style="margin-bottom:12px;">
+                <span style="font-size:20px;font-weight:800;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;"><span style="color:#1A1A2E;">Bl</span><span style="color:#FF8A3D;">o</span><span style="color:#FF5C9D;">o</span><span style="color:#C65CE8;">o</span><span style="color:#1A1A2E;">m</span></span>
+              </div>
+              <p style="margin:0 0 6px;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">© 2026 Blooom · Tous droits réservés</p>
+              <p style="margin:0;font-size:12px;color:#9CA3AF;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+                <a href="https://blooom.app/confidentialite" style="color:#C9986A;text-decoration:none;">Confidentialité</a>
+                &nbsp;·&nbsp;
+                <a href="https://blooom.app/unsubscribe?token={{unsubscribeToken}}" style="color:#C9986A;text-decoration:none;">Se désabonner</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

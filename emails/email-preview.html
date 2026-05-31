@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Blooom — Aperçu des emails transactionnels</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #F4EEE2; font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #1A1A2E; }
+
+    .header { background: linear-gradient(135deg, #FF8A3D 0%, #FF5C9D 55%, #C65CE8 100%); padding: 40px; text-align: center; }
+    .header-logo { font-size: 40px; font-weight: 800; color: #fff; letter-spacing: -1px; }
+    .header-sub { margin-top: 8px; font-size: 14px; color: rgba(255,255,255,0.85); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
+    .header-desc { margin-top: 20px; font-size: 16px; color: rgba(255,255,255,0.9); max-width: 500px; margin-left: auto; margin-right: auto; line-height: 1.6; }
+
+    .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+
+    .section-title { font-size: 12px; font-weight: 600; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 20px; margin-top: 40px; }
+    .section-title:first-child { margin-top: 0; }
+
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-bottom: 8px; }
+
+    .card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.07); transition: transform 0.2s, box-shadow 0.2s; text-decoration: none; display: block; }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 8px 32px rgba(0,0,0,0.12); }
+
+    .card-stripe { height: 6px; }
+    .stripe-welcome  { background: linear-gradient(90deg, #FF8A3D, #FF5C9D); }
+    .stripe-transac  { background: linear-gradient(90deg, #FF5C9D, #C65CE8); }
+    .stripe-notif    { background: linear-gradient(90deg, #FF8A3D, #F59E0B); }
+    .stripe-notif-urgent { background: linear-gradient(90deg, #FF6B1A, #FF3D7F); }
+    .stripe-event    { background: linear-gradient(90deg, #C65CE8, #FF5C9D); }
+    .stripe-award    { background: linear-gradient(90deg, #F59E0B, #FF8A3D); }
+    .stripe-anniv    { background: linear-gradient(90deg, #C65CE8, #FF8A3D); }
+    .stripe-referral { background: linear-gradient(90deg, #FF8A3D, #FF5C9D); }
+    .stripe-plus     { background: linear-gradient(90deg, #FF5C9D, #C65CE8); }
+
+    .card-body { padding: 20px 20px 22px; }
+    .card-num  { font-size: 11px; font-weight: 700; color: #9CA3AF; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+    .card-name { font-size: 16px; font-weight: 700; color: #1A1A2E; margin-bottom: 6px; line-height: 1.3; }
+    .card-sub  { font-size: 12px; color: #6B7280; line-height: 1.5; margin-bottom: 14px; }
+    .card-trigger { font-size: 11px; color: #C9986A; background: #FFF5E8; border-radius: 6px; padding: 4px 10px; display: inline-block; font-weight: 500; margin-bottom: 14px; }
+    .card-vars { font-size: 11px; color: #9CA3AF; font-family: monospace; line-height: 1.7; }
+    .card-link { display: inline-flex; align-items: center; gap: 6px; margin-top: 14px; font-size: 13px; font-weight: 600; color: #FF5C9D; text-decoration: none; }
+    .card-link:hover { color: #FF8A3D; }
+
+    .resend-section { background: #1A1A2E; border-radius: 16px; padding: 32px; margin-top: 48px; }
+    .resend-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 12px; }
+    .resend-sub { font-size: 14px; color: #9CA3AF; line-height: 1.7; margin-bottom: 24px; }
+    pre { background: #0F0F1A; border-radius: 10px; padding: 20px; font-size: 13px; color: #E5E7EB; overflow-x: auto; line-height: 1.6; }
+    .keyword { color: #C084FC; }
+    .string  { color: #86EFAC; }
+    .comment { color: #6B7280; font-style: italic; }
+
+    footer { text-align: center; padding: 32px; font-size: 12px; color: #9CA3AF; }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-logo">Blooom</div>
+    <div class="header-sub">Emails transactionnels</div>
+    <p class="header-desc">10 templates HTML standalone, CSS inline, compatibles Gmail · Apple Mail · Outlook. Envoi via Resend + Supabase Edge Functions.</p>
+  </div>
+
+  <div class="container">
+
+    <!-- ONBOARDING -->
+    <div class="section-title">Onboarding</div>
+    <div class="grid">
+
+      <a href="email-01-bienvenue.html" target="_blank" class="card">
+        <div class="card-stripe stripe-welcome"></div>
+        <div class="card-body">
+          <div class="card-num">Email 01</div>
+          <div class="card-name">🌸 Bienvenue</div>
+          <div class="card-sub">Envoyé à l'inscription. Explique le concept en 3 lignes, 3 features, CTA "Créer ma première capsule".</div>
+          <div class="card-trigger">on-signup</div>
+          <div class="card-vars">{{prenom}}</div>
+          <div><a class="card-link" href="email-01-bienvenue.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+      <a href="email-02-invitation.html" target="_blank" class="card">
+        <div class="card-stripe stripe-welcome"></div>
+        <div class="card-body">
+          <div class="card-num">Email 02</div>
+          <div class="card-name">💛 Invitation capsule</div>
+          <div class="card-sub">Envoyé quand un créateur ajoute un participant. Affiche les détails de la capsule et le compte à rebours.</div>
+          <div class="card-trigger">on-invite</div>
+          <div class="card-vars">{{prenomInvitant}} {{nomCapsule}}<br>{{dateOuverture}} {{joursRestants}}<br>{{dateScellement}} {{codeJoin}}</div>
+          <div><a class="card-link" href="email-02-invitation.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- TRANSACTIONNEL -->
+    <div class="section-title">Transactionnel</div>
+    <div class="grid">
+
+      <a href="email-03-magic-link.html" target="_blank" class="card">
+        <div class="card-stripe stripe-transac"></div>
+        <div class="card-body">
+          <div class="card-num">Email 03</div>
+          <div class="card-name">✨ Lien magique</div>
+          <div class="card-sub">Template Supabase Auth. Très minimaliste : une phrase, un grand bouton, lien de secours.</div>
+          <div class="card-trigger">Supabase Auth template</div>
+          <div class="card-vars">{{confirmationURL}} {{email}}</div>
+          <div><a class="card-link" href="email-03-magic-link.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+      <a href="email-10-plus.html" target="_blank" class="card">
+        <div class="card-stripe stripe-plus"></div>
+        <div class="card-body">
+          <div class="card-num">Email 10</div>
+          <div class="card-name">🌟 Confirmation Plus</div>
+          <div class="card-sub">Envoyé après paiement Stripe. Récapitulatif abonnement, date de renouvellement, liste des avantages débloqués.</div>
+          <div class="card-trigger">Stripe webhook</div>
+          <div class="card-vars">{{prenom}} {{plan}} {{montant}}<br>{{dateAbonnement}} {{dateRenouvellement}}</div>
+          <div><a class="card-link" href="email-10-plus.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- COMPTE À REBOURS -->
+    <div class="section-title">Compte à rebours</div>
+    <div class="grid">
+
+      <a href="email-04-j30.html" target="_blank" class="card">
+        <div class="card-stripe stripe-notif"></div>
+        <div class="card-body">
+          <div class="card-num">Email 04</div>
+          <div class="card-name">⏳ J-30</div>
+          <div class="card-sub">Grand "30" en header. Liste les participants avec leur statut de contribution (coloré vs grisé).</div>
+          <div class="card-trigger">check_countdowns cron</div>
+          <div class="card-vars">{{prenom}} {{nomCapsule}}<br>{{dateOuverture}} {{capsuleId}}<br>{{initiales1..3}} {{prenom1..3}}</div>
+          <div><a class="card-link" href="email-04-j30.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+      <a href="email-05-j7.html" target="_blank" class="card">
+        <div class="card-stripe stripe-notif-urgent"></div>
+        <div class="card-body">
+          <div class="card-num">Email 05</div>
+          <div class="card-name">🌸 J-7 (urgent)</div>
+          <div class="card-sub">Header rouge-orangé plus intense. Bloc conditionnel "vous n'avez pas encore déposé" si {{aDepose}} = false.</div>
+          <div class="card-trigger">check_countdowns cron</div>
+          <div class="card-vars">{{prenom}} {{nomCapsule}}<br>{{dateOuverture}} {{aDepose}}<br>{{capsuleId}}</div>
+          <div><a class="card-link" href="email-05-j7.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- ÉVÉNEMENTS -->
+    <div class="section-title">Événements capsule</div>
+    <div class="grid">
+
+      <a href="email-06-jour-j.html" target="_blank" class="card">
+        <div class="card-stripe stripe-event"></div>
+        <div class="card-body">
+          <div class="card-num">Email 06</div>
+          <div class="card-name">🎉 Jour J</div>
+          <div class="card-sub">Email festif avec animation CSS confetti (progressive enhancement). Affiche nb souvenirs + participants. Quote finale.</div>
+          <div class="card-trigger">check_countdowns cron</div>
+          <div class="card-vars">{{prenom}} {{nomCapsule}}<br>{{nbSouvenirs}} {{nbParticipants}}<br>{{capsuleId}}</div>
+          <div><a class="card-link" href="email-06-jour-j.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+      <a href="email-07-favori.html" target="_blank" class="card">
+        <div class="card-stripe stripe-award"></div>
+        <div class="card-body">
+          <div class="card-num">Email 07</div>
+          <div class="card-name">🏆 Souvenir préféré</div>
+          <div class="card-sub">Header doré. Envoyé à l'auteur du souvenir le plus voté. Aperçu du souvenir dans une box jaune.</div>
+          <div class="card-trigger">on-vote-closed</div>
+          <div class="card-vars">{{prenom}} {{nomCapsule}}<br>{{aperçuSouvenir}} {{nbVotes}}<br>{{nbParticipants}} {{capsuleId}}</div>
+          <div><a class="card-link" href="email-07-favori.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+      <a href="email-08-anniversaire.html" target="_blank" class="card">
+        <div class="card-stripe stripe-anniv"></div>
+        <div class="card-body">
+          <div class="card-num">Email 08</div>
+          <div class="card-name">🎂 Anniversaire</div>
+          <div class="card-sub">Envoyé chaque année à la date de création. Timeline création → ouverture. Bloc conditionnel si pas encore contribué.</div>
+          <div class="card-trigger">check_countdowns cron (annuel)</div>
+          <div class="card-vars">{{prenom}} {{nomCapsule}} {{X}}<br>{{dateCreation}} {{dateOuverture}}<br>{{joursAvantOuverture}} {{aDepose}}</div>
+          <div><a class="card-link" href="email-08-anniversaire.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- CROISSANCE -->
+    <div class="section-title">Croissance</div>
+    <div class="grid">
+
+      <a href="email-09-parrainage.html" target="_blank" class="card">
+        <div class="card-stripe stripe-referral"></div>
+        <div class="card-body">
+          <div class="card-num">Email 09</div>
+          <div class="card-name">🎁 Parrainage</div>
+          <div class="card-sub">Offre 1 mois de Blooom Plus. Box cadeau avec date d'expiration. Liste des avantages Plus.</div>
+          <div class="card-trigger">on-referral</div>
+          <div class="card-vars">{{prenomParrain}} {{prenom}}<br>{{referralCode}} {{dateExpiration}}</div>
+          <div><a class="card-link" href="email-09-parrainage.html" target="_blank">Aperçu →</a></div>
+        </div>
+      </a>
+
+    </div>
+
+    <!-- INTÉGRATION RESEND -->
+    <div class="resend-section">
+      <div class="resend-title">Intégration Resend</div>
+      <p class="resend-sub">
+        Créez un compte sur <strong style="color:#fff;">resend.com</strong> (gratuit jusqu'à 3 000 emails/mois), récupérez votre API key, et ajoutez-la comme secret Supabase.
+      </p>
+      <pre><span class="comment">// Dans chaque Edge Function Supabase</span>
+<span class="keyword">import</span> { Resend } <span class="keyword">from</span> <span class="string">'npm:resend'</span>
+
+<span class="keyword">const</span> resend = <span class="keyword">new</span> Resend(Deno.env.get(<span class="string">'RESEND_API_KEY'</span>))
+
+<span class="comment">// Charger le template HTML</span>
+<span class="keyword">const</span> html = <span class="keyword">await</span> Deno.readTextFile(<span class="string">'./email-01-bienvenue.html'</span>)
+  .replace(<span class="string">/\{\{prenom\}\}/g</span>, prenom)
+  .replace(<span class="string">/\{\{unsubscribeToken\}\}/g</span>, token)
+
+<span class="keyword">await</span> resend.emails.send({
+  from: <span class="string">'Blooom &lt;hello@blooom.app&gt;'</span>,
+  to: [email],
+  subject: <span class="string">'Bienvenue dans Blooom 🌸'</span>,
+  html,
+})
+
+<span class="comment">// Ajouter le secret dans Supabase Dashboard :</span>
+<span class="comment">// Settings → Edge Functions → Secrets → RESEND_API_KEY</span></pre>
+    </div>
+
+  </div>
+
+  <footer>
+    <span style="font-size:20px;font-weight:800;"><span style="color:#1A1A2E;">Bl</span><span style="color:#FF8A3D;">o</span><span style="color:#FF5C9D;">o</span><span style="color:#C65CE8;">o</span><span style="color:#1A1A2E;">m</span></span>
+    <br>
+    © 2026 Blooom · 10 templates HTML · CSS inline · Resend + Supabase Edge Functions
+  </footer>
+
+</body>
+</html>
