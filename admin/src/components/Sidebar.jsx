@@ -10,6 +10,9 @@ const NAV = [
   { id:'notifications', label:'Notifications',   icon:'◬' },
   { id:'content',       label:'Contenu app',     icon:'✦' },
   { id:'analytics',     label:'Analytics',       icon:'◌' },
+  { id:'monetisation',  label:'Monétisation',    icon:'💰' },
+  { id:'codes_promo',   label:'Codes promo',     icon:'🏷️' },
+  { id:'gamification',  label:'Gamification',    icon:'🏆' },
   { id:'moderation',    label:'Modération',      icon:'◉' },
   { id:'parrainage',    label:'Parrainage',      icon:'✦' },
   { id:'settings',      label:'Paramètres',      icon:'⊕' },
@@ -34,8 +37,13 @@ function Logo() {
 }
 
 export default function Sidebar({ currentPage, onNavigate }) {
-  const { user, logout } = useAdmin();
+  const { user, logout, monetAlerts } = useAdmin();
   const [hovered, setHovered] = React.useState(null);
+
+  // Nombre d'alertes financières actives — déclenche le badge rouge sur Monétisation
+  const nbAlertesMonet = monetAlerts
+    ? Object.values(monetAlerts).filter(Boolean).length
+    : 0;
 
   return (
     <aside style={{
@@ -82,9 +90,20 @@ export default function Sidebar({ currentPage, onNavigate }) {
                 WebkitTextFillColor: active ? 'transparent' : 'currentColor',
               }}>{item.icon}</span>
               {item.label}
-              {/* Point rouge modération si besoin */}
+              {/* Point rouge fixe sur Modération */}
               {item.id === 'moderation' && (
                 <span style={{ marginLeft:'auto', width:7, height:7, borderRadius:'50%', background: T.danger }} />
+              )}
+              {/* Badge rouge dynamique sur Monétisation : nb d'alertes actives */}
+              {item.id === 'monetisation' && nbAlertesMonet > 0 && (
+                <span style={{
+                  marginLeft:'auto', minWidth:18, height:18, borderRadius:999,
+                  background: T.danger, color:'#fff',
+                  fontSize:10, fontWeight:700, fontFamily: T.ff_corps,
+                  display:'inline-flex', alignItems:'center', justifyContent:'center', padding:'0 5px',
+                }}>
+                  {nbAlertesMonet}
+                </span>
               )}
             </button>
           );

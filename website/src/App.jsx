@@ -523,72 +523,365 @@ function Privacy() {
 
 
 // ── SECTION 7 — TARIFS ────────────────────────────────────────────────────────
-const PLANS = [
+// Nouveau modèle : packs à l'acte — pas d'abonnement général les 6 premiers mois
+const PACKS_SITE = [
   {
-    nom: 'Gratuit', prix: '0€', periode: null, badge: null, hero: false,
-    features: ['1 capsule active', '5 participants max', 'Photos & messages', '200 Mo de stockage'],
+    id: 'gratuit',
+    icone: '🌱',
+    nom: 'Gratuit',
+    prix: '0€', periode: '',
+    badge: null, hero: false,
+    features: [
+      '1 capsule active',
+      '10 participants',
+      '15 photos',
+      'Messages illimités',
+    ],
     cta: 'Commencer gratuitement',
   },
   {
-    nom: 'Blooom Plus', prix: '2,99€', periode: '/mois', badge: '⭐ Le plus populaire', hero: true,
-    features: ['Capsules illimitées', 'Participants illimités', 'Tous les types de souvenirs', '10 Go de stockage', 'Animations premium'],
-    cta: 'Essayer 30 jours gratuits',
-    sousTexte: 'ou 24,99 € / an',
+    id: 'occasion',
+    icone: '🎉',
+    nom: 'Pack Occasion',
+    soustitre: 'Weekend · Soirée · Voyage · EVG',
+    prix: '12,99€', periode: ' une seule fois',
+    badge: 'Le plus populaire', hero: true,
+    features: [
+      '150 photos',
+      '20 vidéos (20s)',
+      '10 vocaux (20s)',
+      '50 participants',
+      'QR code de partage',
+    ],
+    cta: 'Choisir ce pack',
   },
   {
-    nom: 'Blooom Famille', prix: '4,99€', periode: '/mois', badge: null, hero: false,
-    features: ["Tout ce qu'inclut Plus", '6 comptes familiaux', '50 Go partagés', '1 album papier offert / an'],
-    cta: 'Choisir Famille',
-    sousTexte: 'ou 39,99 € / an',
+    id: 'mariage',
+    icone: '💍',
+    nom: 'Pack Mariage',
+    prix: '29,99€', periode: ' une seule fois',
+    badge: null, hero: false,
+    features: [
+      '500 photos',
+      '50 vidéos (20s)',
+      '30 vocaux (20s)',
+      'Participants illimités',
+      'QR code pour les tables',
+    ],
+    cta: 'Choisir ce pack',
   },
 ]
 
-function Pricing({ onCTA }) {
+const PACKS_RECURRENTS_SITE = [
+  {
+    id: 'naissance',
+    icone: '🍼',
+    nom: 'Pack Naissance',
+    prixMensuel: '4,99€/mois', prixAnnuel: '44,99€/an',
+    economie: '−15€/an',
+    features: [
+      '40 photos par mois',
+      '4 vidéos par mois',
+      '4 vocaux par mois',
+      'Famille illimitée',
+      'Album papier (bientôt)',
+    ],
+  },
+  {
+    id: 'papy',
+    icone: '👴',
+    nom: 'Pack Mamie/Papy',
+    prixMensuel: '4,99€/mois', prixAnnuel: '44,99€/an',
+    economie: '−15€/an',
+    features: [
+      '40 photos par mois',
+      '4 vidéos par mois',
+      '4 vocaux par mois',
+      'Interface simplifiée',
+      'Album papier (bientôt)',
+    ],
+  },
+]
+
+function Pricing({ onCTA, onScrollToStores }) {
+  const [annuel, setAnnuel] = useState(false)
   const title     = useReveal()
   const container = useRevealChildren()
+
   return (
-    <section style={{ background: C.light, padding: '112px 24px' }}>
-      <div style={{ maxWidth: 1040, margin: '0 auto', textAlign: 'center' }}>
+    <section style={{ background: C.light, padding: '112px 24px' }} id="tarifs">
+      <div style={{ maxWidth: 1060, margin: '0 auto', textAlign: 'center' }}>
+
         <h2 ref={title} style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 'clamp(28px, 5vw, 48px)', color: C.txtDark, marginBottom: 14 }}>
-          Simple et transparent.
+          Payez uniquement pour ce dont vous avez besoin.
         </h2>
-        <p ref={useReveal()} style={{ fontFamily: FF.corps, fontSize: 16, color: C.muted, marginBottom: 64 }}>
-          Commencez gratuitement. Évoluez quand vous en avez besoin.
+        <p ref={useReveal()} style={{ fontFamily: FF.corps, fontSize: 16, color: C.muted, marginBottom: 56 }}>
+          Pas d'abonnement général. Un pack ciblé, pour l'occasion qui compte.
         </p>
-        <div ref={container} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(268px, 1fr))', gap: 24, alignItems: 'stretch' }}>
-          {PLANS.map((p, i) => (
-            <div key={i} data-reveal className={`reveal-d${i + 1}`}
-              style={{ background: p.hero ? C.dark : C.lightCard, borderRadius: 28, padding: '44px 32px', display: 'flex', flexDirection: 'column', boxShadow: p.hero ? '0 20px 56px rgba(198,92,232,.28)' : '0 4px 28px rgba(26,14,46,.07)', border: p.hero ? 'none' : '1px solid rgba(26,14,46,.06)', position: 'relative', overflow: 'hidden' }}>
+
+        {/* Grille packs one-shot */}
+        <div ref={container} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, alignItems: 'stretch', marginBottom: 56 }}>
+          {PACKS_SITE.map((p, i) => (
+            <div key={p.id} data-reveal className={`reveal-d${i + 1}`} style={{
+              ...(p.hero ? {
+                background: `linear-gradient(${C.lightCard}, ${C.lightCard}) padding-box, ${C.grad} border-box`,
+                border: '2.5px solid transparent',
+                boxShadow: '0 20px 56px rgba(198,92,232,.16)',
+              } : {
+                background: C.lightCard,
+                border: '1px solid rgba(26,14,46,.06)',
+                boxShadow: '0 4px 28px rgba(26,14,46,.07)',
+              }),
+              borderRadius: 28, padding: p.hero ? '52px 28px 44px' : '44px 28px',
+              display: 'flex', flexDirection: 'column', position: 'relative',
+            }}>
               {p.badge && (
-                <div style={{ position: 'absolute', top: 16, right: 16, background: C.grad, color: '#fff', borderRadius: 999, padding: '5px 13px', fontSize: 11, fontWeight: 700, fontFamily: FF.corps }}>
+                <div style={{
+                  position: 'absolute', top: -15, left: '50%', transform: 'translateX(-50%)',
+                  background: C.grad, color: '#fff', borderRadius: 999, padding: '5px 18px',
+                  fontSize: 12, fontWeight: 700, fontFamily: FF.corps, whiteSpace: 'nowrap',
+                }}>
                   {p.badge}
                 </div>
               )}
-              <h3 style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 22, color: p.hero ? C.txtLight : C.txtDark, marginBottom: 10 }}>{p.nom}</h3>
-              <div style={{ marginBottom: 6 }}>
-                <span style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 44, ...(p.hero ? { background: C.grad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' } : { color: C.txtDark }) }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>{p.icone}</div>
+              <h3 style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 20, color: C.txtDark, marginBottom: 4, textAlign: 'center' }}>
+                {p.nom}
+              </h3>
+              {p.soustitre && (
+                <p style={{ fontFamily: FF.corps, fontSize: 12, color: C.muted, margin: '0 0 12px' }}>{p.soustitre}</p>
+              )}
+              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 4, margin: '8px 0 20px' }}>
+                <span style={{
+                  fontFamily: FF.titre, fontWeight: 800, fontSize: 44,
+                  ...(p.hero
+                    ? { background: C.grad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }
+                    : { color: C.txtDark }),
+                }}>
                   {p.prix}
                 </span>
-                {p.periode && <span style={{ fontFamily: FF.corps, fontSize: 14, color: p.hero ? 'rgba(250,248,252,.45)' : C.muted }}>{p.periode}</span>}
+                {p.periode && <span style={{ fontFamily: FF.corps, fontSize: 13, color: C.muted }}>{p.periode}</span>}
               </div>
-              {p.sousTexte && <div style={{ fontFamily: FF.corps, fontSize: 12, color: p.hero ? 'rgba(250,248,252,.4)' : C.muted, marginBottom: 12 }}>{p.sousTexte}</div>}
-              <ul style={{ listStyle: 'none', padding: 0, margin: '8px 0 32px', textAlign: 'left', flex: 1 }}>
+              <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', textAlign: 'left', flex: 1 }}>
                 {p.features.map((f, j) => (
-                  <li key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 12, fontFamily: FF.corps, fontSize: 14, color: p.hero ? 'rgba(250,248,252,.78)' : C.txtDark }}>
-                    <span style={{ color: p.hero ? C.pink : C.violet, fontSize: 14, marginTop: 1, flexShrink: 0 }}>✓</span>
+                  <li key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10, fontFamily: FF.corps, fontSize: 14, color: C.txtDark }}>
+                    <span style={{ color: p.hero ? C.violet : C.muted, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>
                     {f}
                   </li>
                 ))}
               </ul>
-              <BtnGrad onClick={onCTA} style={{ width: '100%', textAlign: 'center', opacity: p.hero ? 1 : .82 }}>
+              <BtnGrad onClick={onCTA} style={{ width: '100%', textAlign: 'center' }}>
                 {p.cta}
               </BtnGrad>
             </div>
           ))}
         </div>
-        <p style={{ marginTop: 28, fontFamily: FF.corps, fontSize: 13, color: C.muted }}>
-          Tarifs en euros TTC · Sans engagement · Annulable à tout moment
+
+        {/* Packs récurrents Naissance & Mamie/Papy */}
+        <h3 style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 26, color: C.txtDark, marginBottom: 8 }}>
+          Pour les moments qui durent dans le temps
+        </h3>
+        <p style={{ fontFamily: FF.corps, fontSize: 15, color: C.muted, marginBottom: 20 }}>
+          Quotas mensuels renouvelés automatiquement — résiliable à tout moment.
         </p>
+
+        {/* Toggle mensuel / annuel */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(26,14,46,.07)', borderRadius: 999, padding: '5px 6px', marginBottom: 32 }}>
+          <button onClick={() => setAnnuel(false)} style={{
+            padding: '8px 20px', borderRadius: 999, border: 'none', cursor: 'pointer',
+            fontFamily: FF.corps, fontSize: 14, fontWeight: 600,
+            background: !annuel ? C.dark : 'transparent',
+            color: !annuel ? C.txtLight : C.muted,
+          }}>Mensuel</button>
+          <button onClick={() => setAnnuel(true)} style={{
+            padding: '8px 20px', borderRadius: 999, border: 'none', cursor: 'pointer',
+            fontFamily: FF.corps, fontSize: 14, fontWeight: 600,
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: annuel ? C.dark : 'transparent',
+            color: annuel ? C.txtLight : C.muted,
+          }}>
+            Annuel
+            <span style={{ background: 'linear-gradient(135deg,#22C7B8,#4D7CFF)', color: '#fff', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>
+              −15€
+            </span>
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, maxWidth: 680, margin: '0 auto 56px' }}>
+          {PACKS_RECURRENTS_SITE.map((p, i) => (
+            <div key={p.id} style={{
+              background: C.lightCard, border: '1px solid rgba(26,14,46,.06)',
+              borderRadius: 28, padding: '40px 28px',
+              boxShadow: '0 4px 28px rgba(26,14,46,.07)',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 8 }}>{p.icone}</div>
+              <h3 style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 20, color: C.txtDark, marginBottom: 4 }}>{p.nom}</h3>
+              <div style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 40, color: C.txtDark, margin: '8px 0 4px' }}>
+                {annuel ? p.prixAnnuel : p.prixMensuel}
+              </div>
+              {annuel && (
+                <p style={{ fontFamily: FF.corps, fontSize: 12, color: C.muted, margin: '0 0 16px' }}>économisez 15€/an</p>
+              )}
+              <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 28px', textAlign: 'left', flex: 1 }}>
+                {p.features.map((f, j) => (
+                  <li key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10, fontFamily: FF.corps, fontSize: 14, color: C.txtDark }}>
+                    <span style={{ color: C.muted, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>{f}
+                  </li>
+                ))}
+              </ul>
+              <BtnGrad onClick={onCTA} style={{ width: '100%', textAlign: 'center' }}>
+                Choisir ce pack
+              </BtnGrad>
+            </div>
+          ))}
+        </div>
+
+        <p style={{ marginTop: 16, fontFamily: FF.corps, fontSize: 13, color: C.muted, lineHeight: 2 }}>
+          🔐 Paiement sécurisé par Stripe &nbsp;·&nbsp; 🇪🇺 Données hébergées en Europe &nbsp;·&nbsp; ❌ Zéro publicité &nbsp;·&nbsp; 🗑️ Annulation à tout moment
+        </p>
+      </div>
+    </section>
+  )
+}
+
+
+// ── SECTION 8 — OFFRIR BLOOOM ─────────────────────────────────────────────────
+const CADEAUX = [
+  { icone: '🎉', nom: 'Pack Occasion',    desc: 'Weekend, Soirée, Voyage ou EVG',      prix: '12,99€' },
+  { icone: '💍', nom: 'Pack Mariage',     desc: 'L\'événement d\'une vie',             prix: '29,99€' },
+  { icone: '🍼', nom: 'Pack Naissance',   desc: '1 an de souvenirs pour bébé',         prix: '44,99€' },
+]
+
+function GiftSection({ onCTA }) {
+  const title     = useReveal()
+  const container = useRevealChildren()
+  return (
+    <section style={{ background: 'linear-gradient(135deg, #FF8A3D 0%, #FFC436 50%, #FF5C9D 100%)', padding: '112px 24px' }}>
+      <div style={{ maxWidth: 920, margin: '0 auto', textAlign: 'center' }}>
+
+        {/* Titre de la section cadeau */}
+        <h2 ref={title} style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 'clamp(28px, 5vw, 48px)', color: '#fff', marginBottom: 18, textShadow: '0 2px 16px rgba(0,0,0,.15)' }}>
+          🎁 Offrez Blooom à quelqu'un que vous aimez
+        </h2>
+        <p ref={useReveal()} style={{ fontFamily: FF.corps, fontSize: 17, color: 'rgba(255,255,255,.88)', lineHeight: 1.75, marginBottom: 56 }}>
+          Un an de souvenirs partagés. Le cadeau qui compte encore dans 10 ans.
+        </p>
+
+        {/* Trois cartes cadeaux */}
+        <div ref={container} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 20 }}>
+          {CADEAUX.map((c, i) => (
+            <div key={i} data-reveal className={`reveal-d${i + 1}`} style={{
+              background: 'rgba(255,255,255,.18)', backdropFilter: 'blur(16px)',
+              borderRadius: 24, padding: '36px 24px',
+              border: '1px solid rgba(255,255,255,.35)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+            }}>
+              <div style={{ fontSize: 42 }}>{c.icone}</div>
+              <h3 style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 18, color: '#fff', margin: 0 }}>{c.nom}</h3>
+              <p style={{ fontFamily: FF.corps, fontSize: 13, color: 'rgba(255,255,255,.75)', margin: 0 }}>{c.desc}</p>
+              {/* Prix du cadeau */}
+              <div style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 34, color: '#fff', margin: '4px 0' }}>{c.prix}</div>
+              {/* Bouton Offrir — fond blanc, texte orange */}
+              <button onClick={onCTA} style={{
+                background: '#fff', color: C.orange, border: 'none', borderRadius: 12,
+                padding: '11px 26px', fontFamily: FF.corps, fontSize: 14, fontWeight: 700,
+                cursor: 'pointer', transition: 'transform .15s, box-shadow .15s',
+                boxShadow: '0 4px 16px rgba(0,0,0,.12)',
+              }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,.18)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,.12)' }}>
+                Offrir
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+
+// ── SECTION 9 — FAQ ───────────────────────────────────────────────────────────
+const FAQ_ITEMS = [
+  {
+    q: 'Les participants doivent-ils payer ?',
+    r: "Non. Rejoindre une capsule et y déposer des souvenirs est toujours gratuit pour tout le monde. Seul le créateur de la capsule achète un pack.",
+  },
+  {
+    q: "Que se passe-t-il si j'arrête le Pack Naissance ou Mamie/Papy ?",
+    r: "Vos capsules et tous vos souvenirs restent accessibles pour toujours. Les quotas mensuels ne se rechargent plus, mais rien n'est supprimé.",
+  },
+  {
+    q: 'Mes souvenirs sont-ils vraiment privés ?',
+    r: "Oui. Vos souvenirs sont chiffrés et hébergés en Europe. Personne, pas même Blooom, ne peut lire le contenu de vos capsules avant leur ouverture.",
+  },
+  {
+    q: "Puis-je offrir un pack en cadeau ?",
+    r: "Oui. Les packs Occasion, Mariage et Naissance font d'excellents cadeaux. Contactez-nous pour créer un bon cadeau personnalisé.",
+  },
+  {
+    q: "Qu'est-ce que le Pack Mamie/Papy ?",
+    r: "Une capsule mensuelle que votre famille alimente tout au long du mois. Le 1er de chaque mois, vos proches reçoivent une notification et découvrent tous les souvenirs que vous leur avez préparés. L'interface est ultra-simplifiée pour les personnes moins à l'aise avec le numérique.",
+  },
+  {
+    q: "Y a-t-il un engagement pour les packs récurrents ?",
+    r: "Non. Les packs Naissance et Mamie/Papy en mensuel sont résiliables à tout moment. La formule annuelle est facturée en une fois — économisez 15€/an.",
+  },
+]
+
+function FAQ() {
+  // Index de la question actuellement ouverte — null = tout fermé
+  const [ouvert, setOuvert] = useState(null)
+  const title = useReveal()
+
+  return (
+    <section style={{ background: C.light, padding: '112px 24px' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto' }}>
+
+        {/* Titre centré */}
+        <h2 ref={title} style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 'clamp(28px, 5vw, 44px)', color: C.txtDark, textAlign: 'center', marginBottom: 56 }}>
+          Questions fréquentes
+        </h2>
+
+        {/* Liste des items accordéon */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {FAQ_ITEMS.map((item, i) => {
+            const estOuvert = ouvert === i
+            return (
+              <div key={i} style={{
+                background: C.lightCard, borderRadius: 18,
+                border: '1px solid rgba(26,14,46,.07)', overflow: 'hidden',
+                transition: 'box-shadow .2s',
+                boxShadow: estOuvert ? '0 8px 32px rgba(26,14,46,.09)' : '0 2px 10px rgba(26,14,46,.04)',
+              }}>
+                {/* En-tête cliquable — affiche/masque la réponse */}
+                <button onClick={() => setOuvert(estOuvert ? null : i)} style={{
+                  width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+                  padding: '22px 24px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                }}>
+                  <span style={{ fontFamily: FF.corps, fontWeight: 700, fontSize: 15, color: C.txtDark, lineHeight: 1.4 }}>
+                    {item.q}
+                  </span>
+                  {/* Chevron qui pivote à l'ouverture */}
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.violet} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ flexShrink: 0, transition: 'transform .25s', transform: estOuvert ? 'rotate(180deg)' : 'none' }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {/* Réponse — rendue uniquement si la question est ouverte */}
+                {estOuvert && (
+                  <div style={{ padding: '0 24px 22px', animation: 'fadeIn .22s ease both' }}>
+                    <p style={{ fontFamily: FF.corps, fontSize: 14, color: C.muted, lineHeight: 1.85, margin: 0 }}>
+                      {item.r}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
       </div>
     </section>
   )
@@ -692,22 +985,37 @@ function Footer() {
 // ── COMPOSANT PRINCIPAL ────────────────────────────────────────────────────────
 export default function App() {
   const waitlistRef = useRef(null)
+  const heroRef     = useRef(null)
 
+  // Scroll vers la liste d'attente (formulaire email)
   function scrollToWaitlist() {
     waitlistRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  // Scroll vers le haut de page où se trouvent les boutons App Store / Google Play
+  function scrollToStores() {
+    heroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   return (
     <>
       <style>{GLOBAL}</style>
       <Navbar       onCTA={scrollToWaitlist} />
-      <Hero         onCTA={scrollToWaitlist} />
+      {/* ref sur Hero pour que le CTA "Télécharger et commencer" scroll vers les stores */}
+      <div ref={heroRef}>
+        <Hero onCTA={scrollToWaitlist} />
+      </div>
       <HowItWorks   />
       <Mockups      />
       <Occasions    />
       <Testimonials />
       <Privacy      />
-      <Pricing      onCTA={scrollToWaitlist} />
+      {/* Section tarifs — toggle mensuel/annuel, 3 cartes, réassurance */}
+      <Pricing      onCTA={scrollToWaitlist} onScrollToStores={scrollToStores} />
+      {/* Section cadeau — fond solaire, 3 options cadeaux */}
+      <GiftSection  onCTA={scrollToWaitlist} />
+      {/* FAQ accordéon — 6 questions sur tarification, confidentialité, abonnements */}
+      <FAQ />
       <Waitlist     sectionRef={waitlistRef} />
       <Footer       />
     </>

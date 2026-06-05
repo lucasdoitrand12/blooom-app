@@ -1,5 +1,5 @@
 // Section Contenu — modifier le contenu de l'app sans toucher au code
-// Gère : stats sociales, questions d'inspiration, types de capsules, textes
+// Gère : stats sociales, questions d'inspiration, types de capsules, textes, prix & quotas
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { T, TYPES_CAPSULES } from '../lib/utils';
@@ -7,9 +7,31 @@ import { SectionHeader, Btn, Badge, ConfirmModal, Field, Modal } from '../compon
 import { useAdmin } from '../App';
 
 // Les contenus sont stockés dans app_settings (clé JSON)
-// Clés utilisées : stats_sociales, questions_inspiration, types_capsules_overrides, textes_app
+// Clés : stats_sociales, questions_inspiration, types_capsules_overrides, textes_app, quotas_formules
 
-const TABS = ['Stats sociales','Questions','Types capsules','Textes app'];
+const TABS = ['Stats sociales','Questions','Types capsules','Textes app','Prix & Quotas'];
+
+// Quotas par défaut — miroir de src/utils/abonnement.js et du webhook Stripe
+const QUOTAS_DEFAUT = {
+  gratuit:  { photos:15,  videos:0,  vocaux:0,  participants:10,   dureeVideo:0,  dureeVocal:0,  prix:0,     prixLabel:'Gratuit' },
+  occasion: { photos:150, videos:20, vocaux:10, participants:50,   dureeVideo:20, dureeVocal:20, prix:9.99,  prixLabel:'9,99€ one-shot' },
+  mariage:  { photos:500, videos:50, vocaux:30, participants:9999, dureeVideo:20, dureeVocal:20, prix:29.99, prixLabel:'29,99€ one-shot' },
+  naissance:{ photos:40,  videos:4,  vocaux:4,  participants:9999, dureeVideo:20, dureeVocal:20, prix:4.99,  prixAnnuel:44.99, prixLabel:'4,99€/mois ou 44,99€/an' },
+  papy:     { photos:40,  videos:4,  vocaux:4,  participants:9999, dureeVideo:20, dureeVocal:20, prix:4.99,  prixAnnuel:44.99, prixLabel:'4,99€/mois ou 44,99€/an' },
+};
+
+const FORMULES_LABELS = {
+  gratuit:'Gratuit', occasion:'Occasion', mariage:'Mariage', naissance:'Naissance', papy:'Mamie/Papy',
+};
+
+const QUOTA_FIELDS = [
+  { key:'photos',       label:'Photos max',           suffix:'photos' },
+  { key:'videos',       label:'Vidéos max',            suffix:'vidéos' },
+  { key:'vocaux',       label:'Messages vocaux max',   suffix:'vocaux' },
+  { key:'participants', label:'Participants max',       suffix:'pers.' },
+  { key:'dureeVideo',   label:'Durée max vidéo',       suffix:'s' },
+  { key:'dureeVocal',   label:'Durée max vocal',       suffix:'s' },
+];
 
 function ItemRow({ children, onEdit, onDelete, onToggle, active=true }) {
   return (
@@ -32,12 +54,13 @@ export default function Content() {
   const [types,        setTypes]        = useState([]);
   const [textes,       setTextes]       = useState({});
   const [loading,      setLoading]      = useState(true);
-  const [editItem,     setEditItem]     = useState(null);   // { type, index, value }
+  const [editItem,     setEditItem]     = useState(null);
   const [addModal,     setAddModal]     = useState(false);
   const [addValue,     setAddValue]     = useState('');
   const [confirmDel,   setConfirmDel]   = useState(false);
   const [toDelete,     setToDelete]     = useState(null);
   const [saved,        setSaved]        = useState(false);
+  const [quotas,       setQuotas]       = useState({ ...QUOTAS_DEFAUT });
 
   useEffect(() => { loadContent(); }, []);
 
@@ -57,6 +80,10 @@ export default function Content() {
       setTypes(Object.entries(TYPES_CAPSULES).map(([id,icon]) => ({ id, icon, actif:true, nom:id })));
     }
     try { setTextes(JSON.parse(map.textes_app || '{}')); } catch {}
+    try {
+      const q = JSON.parse(map.quotas_formules || '{}');
+      setQuotas({ ...QUOTAS_DEFAUT, ...q });
+    } catch {}
     setLoading(false);
   }
 
@@ -230,6 +257,65 @@ export default function Content() {
                 placeholder={tk.default} />
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Prix & Quotas */}
+      {!loading && tab === 4 && (
+        <div>
+          <div style={{ background: T.card, borderRadius:16, padding:24, border:`1px solid ${T.border}`, marginBottom:16 }}>
+            <div style={{ fontWeight:700, fontSize:14, marginBottom:4 }}>Prix et quotas par formule</div>
+            <div style={{ fontSize:12, color: T.muted, marginBottom:4, lineHeight:1.5 }}>
+              Ces valeurs sont sauvegardées dans la table <code style={{ fontFamily:'monospace', background:T.elevated, padding:'1px 5px', borderRadius:4 }}>app_settings</code> sous la clé <code style={{ fontFamily:'monospace', background:T.elevated, padding:'1px 5px', borderRadius:4 }}>quotas_formules</code>.
+            </div>
+            <div style={{ fontSize:11, color: T.warning, marginBottom:20 }}>
+              ⚠️ Modifier ces valeurs ici ne met pas à jour automatiquement les prix Stripe ni le code du webhook.
+              Ces valeurs servent de référence d'affichage. Pour modifier les quotas réels, mettez aussi à jour le webhook Stripe.
+            </div>
+          </div>
+
+          {Object.entries(FORMULES_LABELS).map(([formule, label]) => {
+            const q = quotas[formule] || QUOTAS_DEFAUT[formule] || {};
+            return (
+              <div key={formule} style={{ background: T.card, borderRadius:16, padding:24, border:`1px solid ${T.border}`, marginBottom:12 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+                  <div style={{ width:36, height:36, borderRadius:10, background:`${T.a2}18`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:700, color:T.a2 }}>
+                    {formule === 'gratuit' ? '🆓' : formule === 'occasion' ? '✨' : formule === 'mariage' ? '💍' : formule === 'naissance' ? '🍼' : '👴'}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:14, color:T.text }}>{label}</div>
+                    <div style={{ fontSize:11, color:T.muted }}>{q.prixLabel || '—'}</div>
+                  </div>
+                </div>
+
+                <div style={{ display:'grid', gridTemplateColumns:'repeat(3, 1fr)', gap:12 }}>
+                  {QUOTA_FIELDS.map(f => (
+                    <div key={f.key}>
+                      <label style={{ display:'block', fontSize:10, fontWeight:700, color:T.muted, marginBottom:5, letterSpacing:.5 }}>
+                        {f.label.toUpperCase()}
+                      </label>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <input
+                          type="number" min={0}
+                          value={q[f.key] ?? ''}
+                          onChange={e => {
+                            const next = {
+                              ...quotas,
+                              [formule]: { ...q, [f.key]: e.target.value === '' ? 0 : parseInt(e.target.value, 10) },
+                            };
+                            setQuotas(next);
+                          }}
+                          onBlur={() => save('quotas_formules', quotas)}
+                          style={{ width:70, padding:'8px 10px', borderRadius:8, border:`1px solid ${T.border}`, background:T.elevated, color:T.text, fontFamily:T.ff_corps, fontSize:13, outline:'none' }}
+                        />
+                        <span style={{ fontSize:11, color:T.muted }}>{f.suffix}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

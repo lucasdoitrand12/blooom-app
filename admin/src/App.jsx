@@ -13,6 +13,9 @@ import Analytics from './pages/Analytics';
 import Moderation from './pages/Moderation';
 import Settings from './pages/Settings';
 import Parrainage from './pages/Parrainage';
+import Monetisation from './pages/Monetisation';
+import CodesPromo from './pages/CodesPromo';
+import Gamification from './pages/Gamification';
 
 // Contexte partagé : session admin + helpers navigation
 export const AdminCtx = createContext(null);
@@ -64,9 +67,11 @@ function Page403({ onLogout }) {
 }
 
 export default function App() {
-  const [session,  setSession]  = useState(undefined); // undefined = en cours de chargement
-  const [isAdmin,  setIsAdmin]  = useState(null);
-  const [page,     setPage]     = useState('dashboard');
+  const [session,      setSession]      = useState(undefined); // undefined = en cours de chargement
+  const [isAdmin,      setIsAdmin]      = useState(null);
+  const [page,         setPage]         = useState('dashboard');
+  // Alertes financières remontées par la page Monétisation (paiement échoué, churn élevé, rituel inactif)
+  const [monetAlerts,  setMonetAlerts]  = useState({ paiementEchoue: false, churnEleve: false, rituelInactif: false });
 
   useEffect(() => {
     // Charge la session persistée, puis écoute les changements
@@ -102,13 +107,14 @@ export default function App() {
   if (!session) return <Login />;
   if (!isAdmin)  return <Page403 onLogout={logout} />;
 
-  const ctx = { user: session.user, logout, navigate: setPage, logAction };
+  const ctx = { user: session.user, logout, navigate: setPage, logAction, monetAlerts, setMonetAlerts };
 
   const PAGES = {
     dashboard: Dashboard, users: Users, capsules: Capsules,
     souvenirs: Souvenirs, notifications: Notifications, content: Content,
     analytics: Analytics, moderation: Moderation, settings: Settings,
-    parrainage: Parrainage,
+    parrainage: Parrainage, monetisation: Monetisation,
+    codes_promo: CodesPromo, gamification: Gamification,
   };
   const PageComponent = PAGES[page] || Dashboard;
 

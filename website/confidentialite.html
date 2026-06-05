@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Confidentialité & Rapport de transparence — Blooom</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #F4EEE2;
+      color: #2E2230;
+      line-height: 1.7;
+    }
+    header {
+      background: linear-gradient(120deg, #FF8A3D, #FF5C9D, #C65CE8);
+      padding: 48px 24px 40px;
+      text-align: center;
+      color: #fff;
+    }
+    header h1 {
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    header p { font-size: 16px; opacity: 0.9; }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+    .mise-a-jour {
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 40px;
+      text-align: center;
+    }
+
+    /* Section engagements */
+    .engagement {
+      background: #fff;
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+      box-shadow: 0 4px 16px rgba(46,34,48,0.07);
+    }
+    .engagement-icone {
+      font-size: 28px;
+      flex-shrink: 0;
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: #F4EEE2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .engagement-titre {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #2E2230;
+    }
+    .engagement-texte {
+      font-size: 14px;
+      color: #6B5B73;
+      line-height: 1.6;
+    }
+
+    /* Rapport de transparence */
+    h2 {
+      font-size: 22px;
+      font-weight: 800;
+      margin: 48px 0 20px;
+      letter-spacing: -0.01em;
+    }
+    .tableau-transparence {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 16px rgba(46,34,48,0.07);
+      margin-bottom: 32px;
+    }
+    .tableau-transparence th {
+      background: #2E2230;
+      color: #fff;
+      padding: 14px 18px;
+      text-align: left;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .tableau-transparence td {
+      padding: 14px 18px;
+      border-bottom: 1px solid #F4EEE2;
+      font-size: 14px;
+    }
+    .tableau-transparence tr:last-child td { border-bottom: none; }
+    .tag-non {
+      display: inline-block;
+      background: #E8F5E9;
+      color: #2E7D32;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .tag-oui {
+      display: inline-block;
+      background: #FFEBEE;
+      color: #C62828;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    /* RGPD */
+    .rgpd-bloc {
+      background: #fff;
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 4px 16px rgba(46,34,48,0.07);
+      margin-bottom: 16px;
+    }
+    .rgpd-bloc h3 {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #2E2230;
+    }
+    .rgpd-bloc p, .rgpd-bloc ul {
+      font-size: 14px;
+      color: #6B5B73;
+      line-height: 1.6;
+    }
+    .rgpd-bloc ul { padding-left: 18px; }
+    .rgpd-bloc li { margin-bottom: 6px; }
+    a { color: #FF5C9D; font-weight: 600; }
+
+    footer {
+      text-align: center;
+      padding: 32px 24px;
+      font-size: 13px;
+      color: #888;
+      border-top: 1px solid #E0D6CC;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div style="font-size: 42px; margin-bottom: 12px;">🔐</div>
+  <h1>Confidentialité & transparence</h1>
+  <p>Ce que Blooom fait de vos données — en toute honnêteté.</p>
+</header>
+
+<main>
+
+  <p class="mise-a-jour">Dernière mise à jour : 31 mai 2026</p>
+
+  <!-- Engagements fondamentaux -->
+  <div class="engagement">
+    <div class="engagement-icone">🔒</div>
+    <div>
+      <div class="engagement-titre">Vos souvenirs sont privés</div>
+      <div class="engagement-texte">Toutes les données sont chiffrées en transit (TLS 1.3) et au repos (AES-256). Seuls vous et les participants explicitement invités à une capsule peuvent y accéder.</div>
+    </div>
+  </div>
+
+  <div class="engagement">
+    <div class="engagement-icone">🇩🇪</div>
+    <div>
+      <div class="engagement-titre">Hébergé en Europe</div>
+      <div class="engagement-texte">Nos serveurs sont situés à Francfort, Allemagne (région EU-Central-1 de Supabase/AWS). Vos données ne quittent jamais l'Union européenne.</div>
+    </div>
+  </div>
+
+  <div class="engagement">
+    <div class="engagement-icone">🚫</div>
+    <div>
+      <div class="engagement-titre">Zéro publicité — inscrit dans nos CGU</div>
+      <div class="engagement-texte">Blooom ne diffuse, n'affiche et ne vend aucun espace publicitaire. Cet engagement est contractuel et figure dans nos Conditions Générales d'Utilisation.</div>
+    </div>
+  </div>
+
+  <div class="engagement">
+    <div class="engagement-icone">🤝</div>
+    <div>
+      <div class="engagement-titre">Zéro revente de données</div>
+      <div class="engagement-texte">Vos données personnelles ne sont jamais vendues, louées ni partagées à des fins commerciales avec des tiers. Pas maintenant, pas demain, jamais.</div>
+    </div>
+  </div>
+
+  <div class="engagement">
+    <div class="engagement-icone">🍪</div>
+    <div>
+      <div class="engagement-titre">Cookies essentiels uniquement</div>
+      <div class="engagement-texte">Blooom n'utilise que les cookies strictement nécessaires au fonctionnement (session utilisateur, préférences d'affichage). Aucun cookie de tracking, aucun cookie publicitaire.</div>
+    </div>
+  </div>
+
+  <div class="engagement">
+    <div class="engagement-icone">🗑️</div>
+    <div>
+      <div class="engagement-titre">Suppression garantie sous 24h</div>
+      <div class="engagement-texte">Quand vous supprimez votre compte depuis l'app, toutes vos données (profil, photos, vidéos, messages) sont effacées de nos serveurs dans les 24 heures. Chaque suppression est enregistrée dans un journal d'audit pour votre traçabilité RGPD.</div>
+    </div>
+  </div>
+
+  <!-- Rapport de transparence -->
+  <h2>📊 Rapport de transparence</h2>
+
+  <table class="tableau-transparence">
+    <thead>
+      <tr>
+        <th>Pratique</th>
+        <th>Blooom fait-il ça ?</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Publicité ciblée</td>
+        <td><span class="tag-non">✓ Jamais</span></td>
+      </tr>
+      <tr>
+        <td>Vente de données à des tiers</td>
+        <td><span class="tag-non">✓ Jamais</span></td>
+      </tr>
+      <tr>
+        <td>Cookies de tracking</td>
+        <td><span class="tag-non">✓ Jamais</span></td>
+      </tr>
+      <tr>
+        <td>Partage avec des data brokers</td>
+        <td><span class="tag-non">✓ Jamais</span></td>
+      </tr>
+      <tr>
+        <td>Transfert de données hors UE</td>
+        <td><span class="tag-non">✓ Jamais</span></td>
+      </tr>
+      <tr>
+        <td>Analyse de contenu pour la pub</td>
+        <td><span class="tag-non">✓ Jamais</span></td>
+      </tr>
+      <tr>
+        <td>Demandes gouvernementales reçues</td>
+        <td>0 (période 2024-2026)</td>
+      </tr>
+      <tr>
+        <td>Données transmises suite à une demande légale</td>
+        <td>0 (période 2024-2026)</td>
+      </tr>
+      <tr>
+        <td>Incidents de sécurité</td>
+        <td>0 (période 2024-2026)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Droits RGPD -->
+  <h2>⚖️ Vos droits RGPD</h2>
+
+  <div class="rgpd-bloc">
+    <h3>Vos droits en vertu du RGPD</h3>
+    <ul>
+      <li><strong>Droit d'accès</strong> — vous pouvez demander une copie de toutes vos données.</li>
+      <li><strong>Droit de rectification</strong> — corrigez vos informations directement depuis l'app (Profil → Modifier).</li>
+      <li><strong>Droit à l'effacement</strong> — supprimez votre compte depuis l'app en moins de 30 secondes. Effectif sous 24h.</li>
+      <li><strong>Droit à la portabilité</strong> — exportez vos données sur demande (fonctionnalité à venir).</li>
+      <li><strong>Droit d'opposition</strong> — refusez tout traitement non essentiel (il n'y en a aucun).</li>
+    </ul>
+  </div>
+
+  <div class="rgpd-bloc">
+    <h3>Responsable du traitement</h3>
+    <p>
+      Blooom — contact : <a href="mailto:privacy@blooom.app">privacy@blooom.app</a><br />
+      Pour toute demande RGPD : réponse garantie sous 72 heures.
+    </p>
+  </div>
+
+  <div class="rgpd-bloc">
+    <h3>Sous-traitants</h3>
+    <p>Nous utilisons uniquement :</p>
+    <ul style="margin-top:8px;">
+      <li><strong>Supabase</strong> (hébergement BDD & stockage fichiers) — serveurs Francfort, Allemagne</li>
+      <li><strong>Resend</strong> (emails transactionnels) — emails de notification uniquement, jamais marketing</li>
+    </ul>
+  </div>
+
+</main>
+
+<footer>
+  © 2026 Blooom · <a href="/">Retour à l'accueil</a> · <a href="mailto:privacy@blooom.app">privacy@blooom.app</a>
+</footer>
+
+</body>
+</html>

@@ -30,6 +30,14 @@ import { supabase } from "./lib/supabase";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { App as CapApp } from "@capacitor/app";
+import {
+  peutContribuer,
+  peutCreerCapsuleGratuite,
+  getQuotasCapsule,
+  getPaywallContent,
+  QUOTAS,
+  DEV_PREMIUM,
+} from "./utils/abonnement.js";
 
 // ============================================================================
 //  2. DONNÉES DE RÉFÉRENCE
@@ -57,6 +65,7 @@ const TYPES_CAPSULES = [
   { id: "vacances",  nom: "Vacances",         icone: "🏕️", dureeAns: 1,   teinte: "#00BBF9" },
   { id: "festival",  nom: "Festival",         icone: "🎪", dureeAns: 1,   teinte: "#FF8A3D" },
   { id: "soiree",    nom: "Soirée mémorable", icone: "🍾", dureeAns: 1,   teinte: "#FF5C9D" },
+  { id: "weekend",   nom: "Week-end",         icone: "🏖️", dureeAns: 1,   teinte: "#00BBF9" },
   { id: "defi_sport",nom: "Défi sportif",     icone: "🏃", dureeAns: 1,   teinte: "#FF6B5E" },
 
   // --- Nouveaux types : famille & transmission ---
@@ -67,6 +76,89 @@ const TYPES_CAPSULES = [
   { id: "memoire",          nom: "Mémoire",           icone: "🕯️", dureeAns: 999, teinte: "#9B8AA0" },
 ];
 
+
+// ── Gamification ────────────────────────────────────────────────────────────
+const NIVEAUX = [
+  { niveau: 1, nom: "Graine",  emoji: "🌱", min: 0,   recompense: null },
+  { niveau: 2, nom: "Bourgeon",emoji: "🌿", min: 15,  recompense: "1 mois Pack Papy/Mamie offert" },
+  { niveau: 3, nom: "Pousse",  emoji: "🪴", min: 40,  recompense: "1 Pack Inoubliable offert" },
+  { niveau: 4, nom: "Branche", emoji: "🌲", min: 80,  recompense: "2 mois Pack Papy/Mamie offerts" },
+  { niveau: 5, nom: "Arbre",   emoji: "🌳", min: 150, recompense: "1 Pack Mariage offert" },
+  { niveau: 6, nom: "Forêt",   emoji: "🌲🌿", min: 300, recompense: "6 mois Pack Papy/Mamie offerts" },
+];
+
+const BADGES_DEF = [
+  {
+    categorie: "Bâtisseur de liens", emoji: "🏗️", cle: "capsules_creees",
+    label: "capsule créée",
+    paliers: [
+      { slug: "premier_souffle",  seuil: 1,  nom: "Premier souffle" },
+      { slug: "semeur",           seuil: 3,  nom: "Semeur" },
+      { slug: "architecte",       seuil: 10, nom: "Architecte" },
+      { slug: "batisseur",        seuil: 25, nom: "Bâtisseur" },
+      { slug: "legende",          seuil: 50, nom: "Légende" },
+    ],
+  },
+  {
+    categorie: "Gardien des instants", emoji: "📸", cle: "souvenirs_deposes",
+    label: "souvenir déposé",
+    paliers: [
+      { slug: "premier_eclat",    seuil: 1,   nom: "Premier éclat" },
+      { slug: "conteur",          seuil: 10,  nom: "Conteur" },
+      { slug: "archiviste",       seuil: 50,  nom: "Archiviste" },
+      { slug: "gardien_badge",    seuil: 200, nom: "Gardien" },
+      { slug: "passeur_badge",    seuil: 500, nom: "Passeur" },
+    ],
+  },
+  {
+    categorie: "Rassembleur", emoji: "🤝", cle: "parrainages_acceptes",
+    label: "parrainage",
+    paliers: [
+      { slug: "trait_union",       seuil: 1,  nom: "Trait d'union" },
+      { slug: "tisseur",           seuil: 5,  nom: "Tisseur" },
+      { slug: "rassembleur_badge", seuil: 15, nom: "Rassembleur" },
+      { slug: "pilier",            seuil: 30, nom: "Pilier" },
+    ],
+  },
+  {
+    categorie: "Passeur de mémoire", emoji: "👴", cle: "capsules_papy_ouvertes",
+    label: "ouverture",
+    paliers: [
+      { slug: "premiere_page",  seuil: 1,  nom: "Première page" },
+      { slug: "feuilleton",     seuil: 6,  nom: "Feuilleton" },
+      { slug: "rituel",         seuil: 12, nom: "Rituel" },
+      { slug: "transmission",   seuil: 24, nom: "Transmission" },
+    ],
+  },
+  {
+    categorie: "Inoubliable", emoji: "✨", cle: "packs_inoubliables_achetes",
+    label: "pack acheté",
+    paliers: [
+      { slug: "premiere_escapade", seuil: 1, nom: "Première escapade" },
+      { slug: "collectionneur",    seuil: 3, nom: "Collectionneur" },
+      { slug: "epicurien",         seuil: 7, nom: "Épicurien" },
+    ],
+  },
+];
+
+const GAMI_VIDE = {
+  points_total: 0, niveau: 1,
+  capsules_creees: 0, souvenirs_deposes: 0,
+  parrainages_acceptes: 0, capsules_papy_ouvertes: 0, packs_inoubliables_achetes: 0,
+};
+
+function niveauDepuisPoints(points) {
+  return [...NIVEAUX].reverse().find(n => points >= n.min) || NIVEAUX[0];
+}
+
+function badgesDebloques(gami) {
+  if (!gami) return [];
+  return BADGES_DEF.flatMap(cat =>
+    cat.paliers
+      .filter(p => (gami[cat.cle] || 0) >= p.seuil)
+      .map(p => ({ ...p, categorie: cat.categorie, emoji: cat.emoji }))
+  );
+}
 
 // 100 statistiques fictives mais crédibles — servent à créer un sentiment de communauté
 // et à inciter à l'action (preuve sociale). Valeurs fixes dans le code, jamais appelées
@@ -202,13 +294,13 @@ function CarteStatRotative() {
     return () => clearInterval(interval);
   }, []);
   return (
-    <div style={{ background: "#fff", borderRadius: 16, padding: "14px 16px",
-      boxShadow: "0 4px 14px rgba(46,34,48,0.07)", textAlign: "center", marginTop: 16 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: COULEURS.doux, letterSpacing: 1, marginBottom: 6 }}>
-        EN CE MOMENT SUR BLOOOM
+    <div style={{ textAlign: "center", marginTop: 12, padding: "0 8px" }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: COULEURS.doux + "80",
+        letterSpacing: 0.5, marginBottom: 4, textTransform: "uppercase" }}>
+        En ce moment sur Blooom
       </div>
-      <div style={{ fontSize: 14, color: COULEURS.encre, lineHeight: 1.55,
-        opacity: visible ? 1 : 0, transition: "opacity 0.35s ease" }}>
+      <div style={{ fontSize: 12, color: COULEURS.doux, lineHeight: 1.5,
+        opacity: visible ? 0.7 : 0, transition: "opacity 0.35s ease", fontStyle: "italic" }}>
         {STATS_SOCIALES[idx]}
       </div>
     </div>
@@ -220,8 +312,8 @@ function CarteStatRotative() {
 function LigneStatDiscrète() {
   const [idx] = React.useState(() => piocherStat());
   return (
-    <p style={{ textAlign: "center", fontSize: 12, color: COULEURS.doux,
-      fontStyle: "italic", margin: "0 0 12px", lineHeight: 1.5 }}>
+    <p style={{ textAlign: "center", fontSize: 11, color: COULEURS.doux,
+      opacity: 0.55, fontStyle: "italic", margin: "0 0 10px", lineHeight: 1.5 }}>
       {STATS_SOCIALES[idx]}
     </p>
   );
@@ -232,12 +324,13 @@ function LigneStatDiscrète() {
 function CarteStatStatique() {
   const [idx] = React.useState(() => piocherStat());
   return (
-    <div style={{ background: "var(--profond-bg)", borderRadius: 16, padding: "14px 16px",
-      boxShadow: "0 4px 14px rgba(46,34,48,0.07)", textAlign: "center", marginTop: 14 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: COULEURS.doux, letterSpacing: 1, marginBottom: 6 }}>
-        EN CE MOMENT SUR BLOOOM
+    <div style={{ textAlign: "center", marginTop: 12, padding: "0 8px" }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: COULEURS.doux + "80",
+        letterSpacing: 0.5, marginBottom: 4, textTransform: "uppercase" }}>
+        En ce moment sur Blooom
       </div>
-      <div style={{ fontSize: 14, color: COULEURS.encre, lineHeight: 1.55 }}>
+      <div style={{ fontSize: 12, color: COULEURS.doux, lineHeight: 1.5,
+        opacity: 0.7, fontStyle: "italic" }}>
         {STATS_SOCIALES[idx]}
       </div>
     </div>
@@ -267,6 +360,7 @@ const TYPES_CONTRIBUTION = [
   { id: "une_du_jour",      nom: "La une du jour",          icone: "📰" },
   { id: "meteo",            nom: "La météo du jour",        icone: "🌤️" },
   { id: "chanson",          nom: "La chanson du moment",    icone: "🎵" },
+  { id: "document",         nom: "Un document PDF",         icone: "📄" },
 ];
 
 // Filtres colorimétriques (CSS). PAS de filtres de visage en réalité augmentée
@@ -291,6 +385,16 @@ const AMBIANCES = [
 ];
 
 const COULEURS_AVATAR = ["#FF6B5E", "#22C7B8", "#4D7CFF", "#FF5C9D", "#FFC436", "#9B5DE5", "#00BBF9", "#FF8A3D"];
+
+// Noms des formules — utilisés dans les badges du profil et les détails de capsule
+const NOM_FORMULE = {
+  gratuit:  "Gratuit",
+  occasion: "Pack Inoubliable",
+  mariage:  "Pack Mariage 💍",
+  naissance:"Pack Naissance 🍼",
+  papy:     "Pack Mamie/Papy 👴",
+};
+
 
 // ============================================================================
 //  3. FONCTIONS UTILITAIRES
@@ -346,6 +450,70 @@ function lireFichierEnBase64(evenement, callback) {
   lecteur.readAsDataURL(fichier);
 }
 
+// Lit DateTimeOriginal depuis les métadonnées EXIF d'un JPEG sans dépendance externe.
+// Retourne une ISO string (heure locale) ou null si absent/non-JPEG.
+async function lireExifDate(file) {
+  try {
+    const buf = await file.arrayBuffer();
+    const v = new DataView(buf);
+    if (v.getUint16(0) !== 0xFFD8) return null;
+    let off = 2;
+    while (off < v.byteLength - 4) {
+      const marker = v.getUint16(off); off += 2;
+      if (marker === 0xFFE1) {
+        off += 2; // segLen
+        const hdr = String.fromCharCode(v.getUint8(off), v.getUint8(off+1), v.getUint8(off+2), v.getUint8(off+3));
+        if (hdr !== "Exif") return null;
+        const t = off + 6;
+        const le = v.getUint16(t) === 0x4949;
+        const u16 = (o) => v.getUint16(t + o, le);
+        const u32 = (o) => v.getUint32(t + o, le);
+        const ifd0 = u32(4);
+        const n0 = u16(ifd0);
+        let subOff = null;
+        for (let i = 0; i < n0; i++) {
+          const e = ifd0 + 2 + i * 12;
+          if (u16(e) === 0x8769) { subOff = u32(e + 8); break; }
+        }
+        if (!subOff) return null;
+        const n1 = u16(subOff);
+        for (let i = 0; i < n1; i++) {
+          const e = subOff + 2 + i * 12;
+          if (u16(e) === 0x9003) {
+            const vOff = u32(e + 8);
+            let str = "";
+            for (let j = 0; j < 19 && (t + vOff + j) < v.byteLength; j++) {
+              const ch = v.getUint8(t + vOff + j);
+              if (ch === 0) break;
+              str += String.fromCharCode(ch);
+            }
+            const m = str.match(/^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/);
+            if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]).toISOString();
+          }
+        }
+        return null;
+      } else if ((marker & 0xFF00) === 0xFF00 && marker !== 0xFFD9) {
+        off += v.getUint16(off);
+      } else break;
+    }
+  } catch {}
+  return null;
+}
+
+function isoToDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const z = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}`;
+}
+
+function isoToTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const z = n => String(n).padStart(2, "0");
+  return `${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+
 // Envoie un fichier (base64, Blob, ou URL existante) vers Supabase Storage.
 // Retourne l'URL publique définitive.
 async function uploaderFichier(bucket, fichier, chemin) {
@@ -373,14 +541,29 @@ async function uploaderFichier(bucket, fichier, chemin) {
 // ============================================================================
 function normaliserProfil(p) {
   return {
-    id: p.id,
-    prenom: p.prenom,
-    description: p.description || "",
-    photo: p.photo_url || null,
-    couleur: p.couleur || COULEURS_AVATAR[0],
+    id:                   p.id,
+    prenom:               p.prenom,
+    description:          p.description          || "",
+    photo:                p.photo_url             || null,
+    couleur:              p.couleur               || COULEURS_AVATAR[0],
     // Parrainage
-    codeParrain:   p.code_parrain   || null,
-    plusExpiresAt: p.plus_expires_at || null,
+    codeParrain:          p.code_parrain          || null,
+    // Abonnement
+    abonnement:           p.abonnement            || "gratuit",
+    abonnementDebutAt:    p.abonnement_debut_at   || null,
+    abonnementExpireAt:   p.abonnement_expire_at  || null,
+    // Early adopter
+    earlyAdopter:         p.early_adopter         || false,
+    earlyAdopteurNumero:  p.early_adopter_numero  || null,
+    // Gamification
+    streakContributions:  p.streak_contributions  || 0,
+    derniereContribution: p.derniere_contribution || null,
+    // Stockage
+    stockageUtiliseMo:    p.stockage_utilise_mo   || 0,
+    // Rétrocompat avec l'ancien champ parrainage Plus
+    plusExpiresAt: p.abonnement_expire_at || p.plus_expires_at || null,
+    // Back office
+    isAdmin: p.is_admin || false,
   };
 }
 
@@ -392,6 +575,7 @@ function normaliserParticipant(p) {
     description: p.description || "",
     photo: p.photo_url || null,
     couleur: p.couleur || COULEURS_AVATAR[0],
+    marie: p.marie || false,
   };
 }
 
@@ -419,16 +603,25 @@ function normaliserContribution(c) {
 
 function normaliserCapsule(c) {
   return {
-    id: c.id,
-    nom: c.nom,
-    type: c.type,
+    id:            c.id,
+    nom:           c.nom,
+    type:          c.type,
     dateOuverture: c.date_ouverture || null,
-    couverture: c.couverture_url || null,
-    dateCreation: c.created_at,
-    ouverte: c.ouverte,
-    code: c.code,
-    createurId: c.created_by || null,
-    participants: (c.participants || []).map(normaliserParticipant),
+    couverture:    c.couverture_url || null,
+    dateCreation:  c.created_at,
+    ouverte:       c.ouverte,
+    code:          c.code,
+    createurId:    c.created_by || null,
+    // Formule et quotas — source unique pour les restrictions de contenu
+    formule:            c.formule || "gratuit",
+    quota_photos:       c.quota_photos       ?? 30,
+    quota_videos:       c.quota_videos       ?? 0,
+    quota_vocaux:       c.quota_vocaux       ?? 0,
+    quota_participants: c.quota_participants ?? 9999,
+    compte_photos:      c.compte_photos      ?? 0,
+    compte_videos:      c.compte_videos      ?? 0,
+    compte_vocaux:      c.compte_vocaux      ?? 0,
+    participants:  (c.participants  || []).map(normaliserParticipant),
     contributions: (c.contributions || []).map(normaliserContribution),
   };
 }
@@ -659,9 +852,10 @@ function EnTeteRetour({ titre, onRetour }) {
   );
 }
 
-function EcranParametres({ palette, mode, onPalette, onMode }) {
+function EcranParametres({ palette, mode, onPalette, onMode, allerVers, ecranPrecedent }) {
   return (
     <div style={S.ecran}>
+      <EnTeteRetour titre="Paramètres" onRetour={() => allerVers(ecranPrecedent || "profil")} />
       <div style={S.enteteAccueil}>
         <p style={S.surtitre}>Personnalisation</p>
         <h1 style={S.titrePage}>Paramètres</h1>
@@ -700,21 +894,1382 @@ function EcranParametres({ palette, mode, onPalette, onMode }) {
   );
 }
 
-function BarreOnglets({ actif, allerVers }) {
-  const onglets = [
-    { cle: "capsules",   nom: "Capsules",   icone: "📦" },
-    { cle: "profil",     nom: "Profil",     icone: "👤" },
-    { cle: "parametres", nom: "Paramètres", icone: "⚙️" },
-  ];
+// ============================================================================
+//  ÉCRAN CRÉER — point d'entrée principal pour tous les packs et la capsule gratuite.
+//  Remplace l'ancien EcranCreation et EcranPacks.
+// ============================================================================
+
+// ── Données des 4 packs occasion ─────────────────────────────────────────────
+// Chaque pack a un dégradé doux (pas saturé) pour les cards carrousel.
+const PACKS_OCCASION = [
+  { id: "weekend", icone: "🏕️", nom: "Weekend",    gradient: "linear-gradient(145deg,#3D7A5E,#1DAB8A)", nomDefault: () => `Weekend du ${new Date().toLocaleDateString("fr-FR",{day:"numeric",month:"long"})}`, type: "amis"   },
+  { id: "soiree",  icone: "🍾", nom: "Soirée",     gradient: "linear-gradient(145deg,#5B2D8E,#8B5CF6)", nomDefault: () => `Soirée du ${new Date().toLocaleDateString("fr-FR",{day:"numeric",month:"long"})}`, type: "soiree" },
+  { id: "voyage",  icone: "✈️", nom: "Voyage",     gradient: "linear-gradient(145deg,#1A5276,#2E86C1)", nomDefault: () => "Mon voyage", champDestination: true, type: "voyage" },
+  { id: "evg",     icone: "🎉", nom: "EVG / EVJF", gradient: "linear-gradient(145deg,#B7770D,#E67E22)", nomDefault: () => `EVG du ${new Date().toLocaleDateString("fr-FR",{day:"numeric",month:"long"})}`, type: "amis"   },
+];
+
+// ── Contenu des drawers "En savoir +" — une liste par type de pack ───────────
+const INCLUS_PAR_PACK = {
+  // Formule gratuite — aperçu des inclus
+  gratuit: [
+    "1 capsule active",
+    "30 photos",
+    "Participants illimités",
+    "Tous les autres souvenirs illimités (messages, secrets, paris…)",
+    "Vidéos et vocaux disponibles si le créateur achète un pack",
+  ],
+  // Packs one-shot (Weekend, Soirée, Voyage, EVG partagent les mêmes inclus)
+  occasion: [
+    "150 photos",
+    "20 vidéos de 20 secondes",
+    "10 messages vocaux de 20 secondes",
+    "50 participants",
+    "Messages illimités",
+    "Ouverture avec animations premium",
+    "Lien cliquable + code à partager aux invités",
+  ],
+  // Pack Mariage — quota plus généreux, participants illimités
+  mariage: [
+    "500 photos",
+    "50 vidéos de 20 secondes",
+    "30 messages vocaux de 20 secondes",
+    "Participants illimités",
+    "QR codes invités imprimables pour les tables",
+    "Messages illimités",
+    "Ouverture avec animations premium",
+  ],
+  // Pack Naissance — quotas mensuels renouvelés le 1er du mois
+  naissance: [
+    "40 photos par mois",
+    "4 vidéos de 20 secondes par mois",
+    "4 messages vocaux de 20 secondes par mois",
+    "Participants illimités",
+    "Messages illimités",
+    "Impression optionnelle",
+    "Résiliable à tout moment",
+  ],
+  // Pack Mamie/Papy — mêmes quotas + interface simplifiée
+  papy: [
+    "30 photos par mois",
+    "4 vidéos de 20 secondes par mois",
+    "4 messages vocaux de 20 secondes par mois",
+    "Interface ultra-simplifiée pour vos proches",
+    "Participants illimités",
+    "Messages illimités",
+    "Impression optionnelle",
+    "Résiliable à tout moment",
+  ],
+};
+
+// ============================================================================
+//  BLOC CODE PROMO — réutilisé dans tous les drawers d'achat
+// ============================================================================
+function BlocCodePromo({ showPromo, setShowPromo, codePromo, setCodePromo,
+  promoValide, remisePromo, promoChargement, onAppliquer }) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      {!showPromo ? (
+        <button onClick={() => setShowPromo(true)}
+          style={{ background: "none", border: "none", color: COULEURS.doux,
+            fontSize: 12, cursor: "pointer", padding: 0,
+            fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+          🏷️ J'ai un code promo
+        </button>
+      ) : (
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={codePromo}
+            onChange={e => setCodePromo(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === "Enter" && onAppliquer()}
+            placeholder="CODE PROMO"
+            style={{ flex: 1, padding: "8px 12px", borderRadius: 10,
+              border: `1.5px solid ${promoValide === true ? "#22C55E" : promoValide === false ? "#EF4444" : COULEURS.bordure}`,
+              background: "var(--input-bg)", fontSize: 13, fontWeight: 600,
+              textTransform: "uppercase", outline: "none", color: COULEURS.encre }}
+          />
+          <button onClick={onAppliquer} disabled={!codePromo.trim() || promoChargement}
+            style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 10,
+              background: DEGRADE, border: "none", color: "#fff",
+              fontWeight: 700, fontSize: 12, cursor: "pointer", opacity: promoChargement ? 0.6 : 1 }}>
+            {promoChargement ? "…" : "Appliquer"}
+          </button>
+        </div>
+      )}
+      {promoValide === true && remisePromo > 0 && (
+        <div style={{ fontSize: 12, color: "#22C55E", fontWeight: 700, marginTop: 5 }}>
+          ✓ Code valide — {remisePromo === 100 ? "100% de réduction (gratuit 🎉)" : `${remisePromo}% de réduction`}
+        </div>
+      )}
+      {promoValide === false && (
+        <div style={{ fontSize: 12, color: "#EF4444", marginTop: 5 }}>
+          Code invalide ou expiré
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+//  BACK OFFICE — gestion des codes promo
+// ============================================================================
+function EcranAdmin({ allerVers }) {
+  const [codes,        setCodes]        = useState([]);
+  const [chargement,   setChargement]   = useState(true);
+  const [nouveau,      setNouveau]      = useState({ code: "", pourcentage: 20, max: "", expire: "" });
+  const [creation,     setCreation]     = useState(false);
+  const [erreur,       setErreur]       = useState(null);
+
+  React.useEffect(() => { chargerCodes(); }, []);
+
+  async function chargerCodes() {
+    setChargement(true);
+    const { data } = await supabase
+      .from("codes_promo")
+      .select("*")
+      .order("created_at", { ascending: false });
+    setCodes(data || []);
+    setChargement(false);
+  }
+
+  async function creerCode() {
+    const code = nouveau.code.trim().toUpperCase();
+    if (!code) { setErreur("Le code ne peut pas être vide."); return; }
+    const pct = parseInt(nouveau.pourcentage, 10);
+    if (isNaN(pct) || pct < 5 || pct > 100) { setErreur("Le pourcentage doit être entre 5 et 100."); return; }
+    setCreation(true); setErreur(null);
+    const body = {
+      code,
+      pourcentage: pct,
+      utilisations_max: nouveau.max ? parseInt(nouveau.max, 10) : null,
+      expire_at:        nouveau.expire ? new Date(nouveau.expire).toISOString() : null,
+      actif:            true,
+    };
+    const { error } = await supabase.from("codes_promo").insert(body);
+    if (error) { setErreur(error.message); setCreation(false); return; }
+    setNouveau({ code: "", pourcentage: 20, max: "", expire: "" });
+    await chargerCodes();
+    setCreation(false);
+  }
+
+  async function toggleActif(c) {
+    await supabase.from("codes_promo").update({ actif: !c.actif }).eq("id", c.id);
+    chargerCodes();
+  }
+
+  async function supprimerCode(id) {
+    if (!confirm("Supprimer ce code ?")) return;
+    await supabase.from("codes_promo").delete().eq("id", id);
+    chargerCodes();
+  }
+
+  const S2 = {
+    label: { fontSize: 12, fontWeight: 700, color: COULEURS.doux, marginBottom: 4, display: "block", textTransform: "uppercase", letterSpacing: ".05em" },
+    input: { width: "100%", padding: "9px 12px", borderRadius: 10, border: `1.5px solid ${COULEURS.bordure}`, background: "var(--input-bg)", fontSize: 13, color: COULEURS.encre, outline: "none", boxSizing: "border-box" },
+  };
+
+  return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="Back office — Codes promo" onRetour={() => allerVers("profil")} />
+
+      {/* Formulaire création */}
+      <div style={{ background: "var(--carte-bg)", borderRadius: 18, padding: "16px 16px",
+        boxShadow: "0 4px 14px rgba(46,34,48,.07)", marginBottom: 18 }}>
+        <div style={{ fontWeight: 800, fontSize: 15, color: COULEURS.encre, marginBottom: 12 }}>
+          ➕ Nouveau code
+        </div>
+
+        <label style={S2.label}>Code</label>
+        <input style={{ ...S2.input, marginBottom: 10, textTransform: "uppercase", fontWeight: 700 }}
+          value={nouveau.code} placeholder="EX : BLOOOM50"
+          onChange={e => setNouveau(n => ({ ...n, code: e.target.value.toUpperCase() }))} />
+
+        <label style={S2.label}>Réduction (%)</label>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+          <input type="range" min="5" max="100" step="5"
+            value={nouveau.pourcentage}
+            onChange={e => setNouveau(n => ({ ...n, pourcentage: e.target.value }))}
+            style={{ flex: 1 }} />
+          <div style={{ fontWeight: 900, fontSize: 18, color: COULEURS.corail, minWidth: 50, textAlign: "right" }}>
+            {nouveau.pourcentage}%{parseInt(nouveau.pourcentage) === 100 ? " 🎉" : ""}
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label style={S2.label}>Utilisations max</label>
+            <input style={S2.input} type="number" min="1" placeholder="Illimité"
+              value={nouveau.max}
+              onChange={e => setNouveau(n => ({ ...n, max: e.target.value }))} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={S2.label}>Expiration</label>
+            <input style={S2.input} type="date"
+              value={nouveau.expire}
+              onChange={e => setNouveau(n => ({ ...n, expire: e.target.value }))} />
+          </div>
+        </div>
+
+        {erreur && <div style={{ fontSize: 12, color: "#EF4444", marginBottom: 8 }}>{erreur}</div>}
+
+        <button onClick={creerCode} disabled={creation || !nouveau.code.trim()}
+          style={{ ...S.boutonPrincipal, marginTop: 0, opacity: creation || !nouveau.code.trim() ? 0.6 : 1 }}>
+          {creation ? "Création…" : "Créer le code"}
+        </button>
+      </div>
+
+      {/* Liste des codes */}
+      <div style={{ fontSize: 12, fontWeight: 800, color: COULEURS.doux,
+        letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 10 }}>
+        {chargement ? "Chargement…" : `${codes.length} code${codes.length !== 1 ? "s" : ""}`}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {codes.map(c => (
+          <div key={c.id} style={{ background: "var(--carte-bg)", borderRadius: 16, padding: "12px 14px",
+            boxShadow: "0 2px 8px rgba(46,34,48,.05)",
+            border: c.actif ? "none" : `1.5px solid ${COULEURS.bordure}`,
+            opacity: c.actif ? 1 : 0.55 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: COULEURS.encre,
+                fontFamily: "monospace", letterSpacing: ".05em" }}>
+                {c.code}
+              </div>
+              <div style={{ fontWeight: 900, fontSize: 16, color: COULEURS.corail }}>
+                {c.pourcentage}%{c.pourcentage === 100 ? " 🎉" : ""}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: COULEURS.doux, marginBottom: 8 }}>
+              {c.utilisations_actuelles || 0} utilisation{(c.utilisations_actuelles || 0) !== 1 ? "s" : ""}
+              {c.utilisations_max ? ` / ${c.utilisations_max}` : " (illimité)"}
+              {c.expire_at ? ` · expire le ${new Date(c.expire_at).toLocaleDateString("fr-FR")}` : ""}
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => toggleActif(c)}
+                style={{ flex: 1, padding: "6px 0", borderRadius: 10, border: "none",
+                  background: c.actif ? "#ECFDF5" : "#FEF2F2",
+                  color: c.actif ? "#059669" : "#DC2626",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                {c.actif ? "✓ Actif" : "✗ Inactif"}
+              </button>
+              <button onClick={() => supprimerCode(c.id)}
+                style={{ padding: "6px 14px", borderRadius: 10, border: "none",
+                  background: "#FEF2F2", color: "#DC2626",
+                  fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                🗑
+              </button>
+            </div>
+          </div>
+        ))}
+        {!chargement && codes.length === 0 && (
+          <div style={{ textAlign: "center", color: COULEURS.doux, fontSize: 13, padding: "20px 0" }}>
+            Aucun code promo pour l'instant
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+//  BADGES & NIVEAUX — affichage du profil de gamification
+// ============================================================================
+function EcranBadges({ gami, allerVers }) {
+  const g = gami || GAMI_VIDE;
+  const niveauActuel   = NIVEAUX.find(n => n.niveau === g.niveau) || NIVEAUX[0];
+  const niveauSuivant  = NIVEAUX.find(n => n.niveau === g.niveau + 1) || null;
+  const progression    = niveauSuivant
+    ? Math.min(100, ((g.points_total - niveauActuel.min) / (niveauSuivant.min - niveauActuel.min)) * 100)
+    : 100;
+
+  return (
+    <div style={{ ...S.ecran, padding: "0 0 96px", gap: 0 }}>
+      <EnTeteRetour titre="Mes badges &amp; niveau" onRetour={() => allerVers("profil")} />
+
+      <div style={{ padding: "0 20px" }}>
+        {/* ── Carte niveau ─────────────────────────────────────── */}
+        <div style={{ background: "linear-gradient(135deg,#667eea,#764ba2)", borderRadius: 20,
+          padding: "20px 20px 18px", marginBottom: 16, color: "#fff" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14 }}>
+            <span style={{ fontSize: 44, lineHeight: 1 }}>{niveauActuel.emoji}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, opacity: 0.75, textTransform: "uppercase", letterSpacing: 1 }}>
+                Niveau {niveauActuel.niveau}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "'Bricolage Grotesque',sans-serif",
+                lineHeight: 1.2 }}>
+                {niveauActuel.nom}
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div style={{ fontSize: 32, fontWeight: 800, lineHeight: 1 }}>{g.points_total}</div>
+              <div style={{ fontSize: 11, opacity: 0.75 }}>points</div>
+            </div>
+          </div>
+
+          {niveauSuivant ? (
+            <>
+              <div style={{ background: "rgba(255,255,255,0.25)", borderRadius: 100, height: 7,
+                overflow: "hidden", marginBottom: 6 }}>
+                <div style={{ background: "#fff", height: "100%", borderRadius: 100,
+                  width: `${progression}%`, transition: "width 0.8s cubic-bezier(.25,.46,.45,.94)" }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, opacity: 0.8 }}>
+                <span>{g.points_total} pts</span>
+                <span>{niveauSuivant.min} pts → {niveauSuivant.emoji} {niveauSuivant.nom}</span>
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign: "center", fontSize: 13, fontWeight: 700, marginTop: 4 }}>
+              🏆 Niveau maximum atteint !
+            </div>
+          )}
+        </div>
+
+        {/* ── Récompense du niveau actuel ───────────────────────── */}
+        {niveauActuel.recompense && (
+          <div style={{ background: "var(--carte-bg)", borderRadius: 16, padding: "13px 16px",
+            marginBottom: 20, display: "flex", gap: 12, alignItems: "center",
+            boxShadow: "0 2px 10px rgba(46,34,48,0.07)" }}>
+            <span style={{ fontSize: 26, flexShrink: 0 }}>🎁</span>
+            <div>
+              <div style={{ fontSize: 11, color: COULEURS.doux, marginBottom: 2 }}>Récompense débloquée</div>
+              <div style={{ fontWeight: 700, color: COULEURS.encre, fontSize: 14 }}>
+                {niveauActuel.recompense}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Badges par catégorie ──────────────────────────────── */}
+        {BADGES_DEF.map(cat => {
+          const valeur = g[cat.cle] || 0;
+          return (
+            <div key={cat.cle} style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: COULEURS.doux,
+                marginBottom: 10, display: "flex", alignItems: "center", gap: 6,
+                textTransform: "uppercase", letterSpacing: 0.5 }}>
+                <span>{cat.emoji}</span> {cat.categorie}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {cat.paliers.map(palier => {
+                  const ok = valeur >= palier.seuil;
+                  return (
+                    <div key={palier.slug} style={{
+                      background: "var(--carte-bg)", borderRadius: 14,
+                      padding: "12px 14px", display: "flex", alignItems: "center", gap: 12,
+                      opacity: ok ? 1 : 0.45,
+                      border: `1.5px solid ${ok ? COULEURS.corail + "35" : "transparent"}`,
+                      boxShadow: ok ? "0 2px 8px rgba(255,107,94,0.10)" : "none",
+                    }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                        background: ok
+                          ? `linear-gradient(135deg,${COULEURS.corail},#ff9a7b)`
+                          : "rgba(150,150,150,0.15)",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>
+                        {ok ? cat.emoji : "🔒"}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14,
+                          color: ok ? COULEURS.encre : COULEURS.doux }}>
+                          {palier.nom}
+                        </div>
+                        <div style={{ fontSize: 12, color: COULEURS.doux, marginTop: 2 }}>
+                          {ok
+                            ? `✓ Débloqué — ${palier.seuil} ${cat.label}${palier.seuil > 1 ? "s" : ""}`
+                            : `Il te manque ${palier.seuil - valeur} ${cat.label}${palier.seuil - valeur > 1 ? "s" : ""}`}
+                        </div>
+                      </div>
+                      {ok && <span style={{ fontSize: 18, flexShrink: 0 }}>✅</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Toast affiché quand un niveau ou un badge est débloqué
+function GamiToast({ unlock, onFermer }) {
+  React.useEffect(() => {
+    const t = setTimeout(onFermer, 4500);
+    return () => clearTimeout(t);
+  }, [onFermer]);
+
+  const infosNiveau = unlock?.type === "niveau" ? NIVEAUX.find(n => n.niveau === unlock.niveau) : null;
+  const premierBadge = unlock?.type === "badge" ? unlock.badges[0] : null;
+
+  return (
+    <div style={{ position: "absolute", top: 60, left: 12, right: 12, zIndex: 450,
+      animation: "fadeSlideUp 0.4s cubic-bezier(0.34,1.56,0.64,1) both" }}>
+      <div style={{ background: "linear-gradient(135deg,#667eea,#764ba2)", borderRadius: 18,
+        padding: "14px 14px 14px 16px", color: "#fff",
+        display: "flex", alignItems: "center", gap: 12,
+        boxShadow: "0 8px 32px rgba(102,126,234,0.45)" }}>
+        <span style={{ fontSize: 34, flexShrink: 0, lineHeight: 1 }}>
+          {unlock?.type === "niveau" ? (infosNiveau?.emoji || "🌟") : (premierBadge?.emoji || "🏅")}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {unlock?.type === "niveau" ? (
+            <>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>Niveau supérieur !</div>
+              <div style={{ fontSize: 13, opacity: 0.9, marginTop: 2 }}>
+                Tu es maintenant {infosNiveau?.nom} {infosNiveau?.emoji}
+                {infosNiveau?.recompense && ` — ${infosNiveau.recompense}`}
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>Nouveau badge débloqué !</div>
+              <div style={{ fontSize: 13, opacity: 0.9, marginTop: 2 }}>
+                {premierBadge?.nom}
+                {unlock.badges.length > 1 && ` +${unlock.badges.length - 1} autre${unlock.badges.length > 2 ? "s" : ""}`}
+              </div>
+            </>
+          )}
+        </div>
+        <button onClick={onFermer} style={{ background: "rgba(255,255,255,0.22)", border: "none",
+          borderRadius: 8, padding: "5px 9px", color: "#fff", cursor: "pointer", fontSize: 13,
+          flexShrink: 0 }}>
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EcranCreer({ moi, capsules, allerVers, creerCapsule, onPaywall, ecranPrecedent }) {
+  // Pack ouvert dans le drawer (null = drawer fermé)
+  const [drawerPack,  setDrawerPack]  = useState(null);
+  // Champs de personnalisation dans le drawer
+  const [nomCapsule,       setNomCapsule]       = useState("");
+  const [destination,      setDestination]      = useState("");
+  const [prenomBebe,       setPrenomBebe]       = useState("");
+  const [prenom,           setPrenom]           = useState("");
+  const [chargement,       setChargement]       = useState(false);
+  const [showPromo,        setShowPromo]        = useState(false);
+  const [codePromo,        setCodePromo]        = useState("");
+  const [promoValide,      setPromoValide]      = useState(null); // null | true | false
+  const [remisePromo,      setRemisePromo]      = useState(0);
+  const [promoChargement,  setPromoChargement]  = useState(false);
+
+  // Compte uniquement les capsules gratuites actives — les packs payants n'entrent pas dans ce quota
+  const nbActives = capsules.filter(c => c.createurId === moi?.id && !c.ouverte && c.formule === "gratuit").length;
+  const { peut: peutGratuit } = peutCreerCapsuleGratuite(nbActives);
+
+  // Ouvre le drawer pour un pack donné et pré-remplit le nom par défaut
+  function ouvrirDrawer(pack) {
+    setDrawerPack(pack);
+    setNomCapsule(pack.nomDefault ? pack.nomDefault("") : "");
+    setDestination(""); setPrenomBebe(""); setPrenom("");
+  }
+  // Ferme le drawer sans agir
+  function fermerDrawer() {
+    setDrawerPack(null); setNomCapsule("");
+    setShowPromo(false); setCodePromo(""); setPromoValide(null); setRemisePromo(0);
+  }
+
+  // Valide un code promo contre la table codes_promo
+  async function appliquerPromo() {
+    const code = codePromo.trim().toUpperCase();
+    if (!code) return;
+    setPromoChargement(true);
+    setPromoValide(null);
+    try {
+      const { data } = await supabase
+        .from("codes_promo")
+        .select("pourcentage, actif, expire_at, utilisations_max, utilisations_actuelles")
+        .eq("code", code)
+        .single();
+      if (!data || !data.actif) { setPromoValide(false); return; }
+      if (data.expire_at && new Date(data.expire_at) < new Date()) { setPromoValide(false); return; }
+      if (data.utilisations_max !== null && data.utilisations_actuelles >= data.utilisations_max) {
+        setPromoValide(false); return;
+      }
+      setRemisePromo(data.pourcentage);
+      setPromoValide(true);
+    } catch { setPromoValide(false); }
+    finally { setPromoChargement(false); }
+  }
+
+  function prixReduit(centimes, remise) {
+    if (!remise) return null;
+    return ((centimes / 100) * (1 - remise / 100)).toFixed(2) + "€";
+  }
+
+  // Redirige vers Stripe Checkout via l'Edge Function
+  async function acheterPack(stripeType, formule) {
+    if (!drawerPack) return;
+    setChargement(true);
+    const nomFinal = destination.trim()
+      ? `Voyage à ${destination.trim()}`
+      : prenomBebe.trim()
+        ? prenomBebe.trim()
+        : prenom.trim()
+          ? drawerPack.nomDefault?.(prenom.trim()) || prenom.trim()
+          : nomCapsule.trim() || drawerPack.nomDefault?.("") || "Ma capsule";
+    try {
+      const body = {
+        type:         stripeType,
+        user_id:      moi?.id,
+        capsule_data: { nom: nomFinal, type: drawerPack.type || "amis", formule },
+        success_url:  `${window.location.origin}?checkout=success&pack=${formule}`,
+        cancel_url:   `${window.location.origin}?checkout=cancelled`,
+      };
+      if (promoValide && codePromo.trim()) body.promo_code = codePromo.trim().toUpperCase();
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", { body });
+      if (error || !data?.url) throw new Error(error?.message || "Erreur");
+      window.location.href = data.url;
+    } catch (e) {
+      alert("Impossible d'accéder au paiement : " + e.message);
+      setChargement(false);
+    }
+  }
+
+  // Ouvre le drawer Gratuit — la création se fait depuis le CTA dans le drawer
+  function ouvrirDrawerGratuit() {
+    if (!peutGratuit) { onPaywall?.("capsule_limite_gratuit"); return; }
+    ouvrirDrawer({
+      id: "gratuit", icone: "🌱", nom: "Capsule gratuite",
+      categorie: "gratuit", nomDefault: () => "Ma capsule",
+    });
+  }
+
+  return (
+    <div style={{ ...S.ecran, position: "relative", overflow: "hidden" }}>
+      {/* Contenu principal — assombri quand le drawer est ouvert */}
+      <div style={{
+        overflowY: "auto", height: "100%", paddingBottom: 24,
+        filter: drawerPack ? "brightness(0.55)" : "none",
+        transition: "filter 0.25s ease",
+        pointerEvents: drawerPack ? "none" : "auto",
+      }}>
+        {/* En-tête compact */}
+        <div style={{ padding: "10px 20px 6px" }}>
+          {ecranPrecedent && !["capsules", "profil"].includes(ecranPrecedent) && (
+            <button onClick={() => allerVers(ecranPrecedent)}
+              style={{ background: "none", border: "none", cursor: "pointer", padding: "0 0 6px",
+                display: "flex", alignItems: "center", gap: 6,
+                color: COULEURS.doux, fontSize: 13, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              ← Retour
+            </button>
+          )}
+          <h1 style={{ ...S.titrePage, margin: 0, fontSize: 17 }}>Profitez de plus de souvenirs ✨</h1>
+        </div>
+
+        {/* ── Section "Pour toi" ── */}
+        <div style={{ padding: "0 20px", marginBottom: 8 }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+            fontSize: 13, color: COULEURS.encre, marginBottom: 6 }}>Pour toi 🎉</div>
+
+          {/* Pack Inoubliable */}
+          <button
+            onClick={() => ouvrirDrawer({
+              id: "occasion", icone: "🎉", nom: "Pack Inoubliable",
+              gradient: "linear-gradient(135deg,#3730a3,#7c3aed)",
+              nomDefault: () => "Notre moment",
+              categorie: "occasion", type: "amis",
+            })}
+            style={{
+              position: "relative", width: "100%", borderRadius: 16,
+              background: "linear-gradient(135deg, #3730a3 0%, #7c3aed 100%)",
+              border: "none", cursor: "pointer",
+              padding: "11px 16px", marginBottom: 8,
+              display: "flex", alignItems: "center", gap: 14,
+              boxShadow: "0 6px 20px rgba(109,40,217,0.40)",
+              boxSizing: "border-box",
+            }}>
+            <div style={{ fontSize: 32, lineHeight: 1, flexShrink: 0 }}>🎉</div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: 15, color: "#fff" }}>Pack Inoubliable</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.80)", marginTop: 3 }}>
+                Weekend · Soirée · Voyage · EVJF · EVG
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.55)", marginTop: 3 }}>
+                150 photos · 20 vidéos · 10 vocaux
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 900,
+                fontSize: 20, color: "#fff" }}>9,99€</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)" }}>one-shot</div>
+            </div>
+          </button>
+
+          {/* Pack Mariage */}
+          <button
+            onClick={() => ouvrirDrawer({
+              id: "mariage", icone: "💍", nom: "Pack Mariage", type: "mariage",
+              gradient: "linear-gradient(135deg,#FF5C9D,#FFC436)",
+              nomDefault: () => "Notre mariage", categorie: "mariage",
+              pleinePage: true,
+            })}
+            style={{
+              position: "relative", width: "100%",
+              background: "linear-gradient(135deg,#FF5C9D 0%,#FF8A3D 50%,#FFC436 100%)",
+              borderRadius: 16, padding: "11px 16px",
+              border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 14,
+              boxShadow: "0 6px 20px rgba(255,92,157,0.35)",
+              boxSizing: "border-box",
+            }}>
+            <div style={{ position: "absolute", top: -8, right: 14,
+              background: "#fff", color: "#FF5C9D", borderRadius: 999,
+              padding: "2px 10px", fontSize: 10, fontWeight: 800,
+              boxShadow: "0 2px 6px rgba(0,0,0,0.12)" }}>
+              Le plus complet ✨
+            </div>
+            <div style={{ fontSize: 32, lineHeight: 1, flexShrink: 0 }}>💍</div>
+            <div style={{ flex: 1, textAlign: "left" }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: 15, color: "#fff" }}>Pack Mariage</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.85)", marginTop: 3 }}>
+                500 photos · 50 vidéos · 30 vocaux
+              </div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.60)", marginTop: 3 }}>
+                Participants illimités · QR codes invités
+              </div>
+            </div>
+            <div style={{ textAlign: "right", flexShrink: 0 }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 900,
+                fontSize: 20, color: "#fff" }}>29,99€</div>
+              <div style={{ fontSize: 10, color: "rgba(255,255,255,0.65)" }}>one-shot</div>
+            </div>
+          </button>
+        </div>
+
+        {/* ── Section "À offrir" ── */}
+        <div style={{ padding: "0 20px", marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+            fontSize: 13, color: COULEURS.encre, marginBottom: 6 }}>À offrir 💛</div>
+
+          {/* Pack Mamie/Papy */}
+          <button
+            onClick={() => ouvrirDrawer({
+              id: "papy", icone: "👴", nom: "Mamie / Papy", type: "papy",
+              champPrenom: true, nomDefault: (p) => p ? `Capsule de ${p}` : "Mamie & Papy",
+              categorie: "recurrent", pleinePage: true,
+              gradient: "linear-gradient(135deg,#FFFBEB,#FDE68A)",
+            })}
+            style={{
+              width: "100%",
+              background: "linear-gradient(135deg,#FFFBEB 0%,#FEF3C7 60%,#FDE68A 100%)",
+              borderRadius: 18, border: "1.5px solid #FDE68A",
+              cursor: "pointer", padding: "14px 16px",
+              display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8,
+              boxSizing: "border-box", textAlign: "left",
+              boxShadow: "0 4px 16px rgba(251,191,36,0.22)",
+            }}>
+            <div style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 24 }}>👵👴</span>
+                <div>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                    fontSize: 15, color: "#92400E" }}>Pack Mamie / Papy</div>
+                  <div style={{ fontSize: 11, color: "#B45309",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Abonnement mensuel · résiliable
+                  </div>
+                </div>
+              </div>
+              <div style={{ textAlign: "right", flexShrink: 0 }}>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 900,
+                  fontSize: 19, color: "#92400E" }}>4,99€</div>
+                <div style={{ fontSize: 10, color: "#B45309" }}>/mois</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: "#B45309", lineHeight: 1.45,
+              fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Une fenêtre sur votre vie pour que Mamie et Papy ne ratent rien — interface ultra-simplifiée.
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5 }}>
+              {["30 photos/mois", "4 vidéos/mois", "4 vocaux/mois", "Interface simplifiée"].map((t, i) => (
+                <span key={i} style={{ background: "rgba(146,64,14,0.1)", color: "#92400E",
+                  borderRadius: 99, padding: "2px 8px", fontSize: 10, fontWeight: 600,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{t}</span>
+              ))}
+            </div>
+            <div style={{ width: "100%", background: "#92400E", borderRadius: 10,
+              padding: "9px 0", textAlign: "center",
+              fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+              fontSize: 13, color: "#fff" }}>
+              Découvrir ce pack →
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* ── Plein écran pour Papy/Naissance ── */}
+      {drawerPack?.pleinePage && (
+        <div style={{
+          position: "absolute", inset: 0, zIndex: 400,
+          background: "var(--carte-bg)",
+          display: "flex", flexDirection: "column",
+          animation: "slideUp 0.28s ease",
+        }}>
+          {/* ── MARIAGE : bandeau pleine largeur rose/doré ── */}
+          {drawerPack.id === "mariage" ? (<>
+            <div style={{
+              background: "linear-gradient(160deg,#4a0020 0%,#9d1a4e 40%,#c2185b 70%,#e91e8c 100%)",
+              padding: "44px 20px 24px", position: "relative", overflow: "hidden",
+            }}>
+              <button onClick={fermerDrawer} style={{
+                position: "absolute", top: 12, left: 16,
+                background: "rgba(255,255,255,0.2)", border: "none", borderRadius: 999,
+                padding: "5px 13px", fontSize: 12, fontWeight: 700,
+                color: "#fff", cursor: "pointer",
+              }}>← Retour</button>
+              <div style={{ position: "absolute", top: -10, right: -10, fontSize: 80, opacity: 0.07, lineHeight: 1 }}>💍</div>
+
+              {/* Ligne emoji + prix côte à côte */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                <div style={{ fontSize: 42, lineHeight: 1 }}>💍</div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 900,
+                    fontSize: 26, color: "#FFD700", lineHeight: 1 }}>29,99€</div>
+                  <div style={{ fontSize: 11, color: "rgba(255,255,255,0.60)", marginTop: 2 }}>paiement unique</div>
+                </div>
+              </div>
+              {/* Titre + tagline */}
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: 22, color: "#fff", letterSpacing: "-0.3px", marginBottom: 6 }}>Pack Mariage</div>
+              <div style={{ fontSize: 12, color: "rgba(255,255,255,0.72)",
+                fontFamily: "'Plus Jakarta Sans', sans-serif", lineHeight: 1.5 }}>
+                Immortalisez le plus beau jour de votre vie — chaque photo, chaque émotion, scellées pour toujours.
+              </div>
+            </div>
+
+            <div className="scrollbar-pack" style={{ flex: 1, overflowY: "auto", padding: "20px 20px 0" }}>
+
+              {/* Badge "Le plus complet" */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10,
+                background: "linear-gradient(135deg,#fff0f5,#ffe4ef)", borderRadius: 14,
+                padding: "10px 14px", marginBottom: 18, border: "1.5px solid #ffb3d0" }}>
+                <span style={{ fontSize: 20 }}>✨</span>
+                <div>
+                  <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+                    fontSize: 13, color: "#9d1a4e" }}>Le pack le plus complet de Blooom</div>
+                  <div style={{ fontSize: 11, color: "#c2185b", marginTop: 1,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Conçu pour les grands moments d'une vie
+                  </div>
+                </div>
+              </div>
+
+              {/* Ce qui est inclus */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+                  fontSize: 15, color: COULEURS.encre, marginBottom: 12 }}>Ce qui est inclus</div>
+                {(INCLUS_PAR_PACK.mariage || []).map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
+                    <span style={{ fontSize: 15, color: "#c2185b", flexShrink: 0 }}>✓</span>
+                    <span style={{ fontSize: 13, color: COULEURS.encre, lineHeight: "20px",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Comment ça fonctionne */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+                  fontSize: 15, color: COULEURS.encre, marginBottom: 12 }}>Comment ça fonctionne</div>
+                {[
+                  { emoji: "💳", texte: "Vous achetez le pack une seule fois — la capsule est créée instantanément." },
+                  { emoji: "💌", texte: "Partagez le lien ou le QR code à vos invités : ils déposent photos, vidéos et vocaux depuis leur téléphone." },
+                  { emoji: "📸", texte: "500 photos, 50 vidéos, 30 messages vocaux — de quoi capturer chaque instant de la journée." },
+                  { emoji: "🔒", texte: "La capsule reste scellée aussi longtemps que vous le souhaitez — ouvrez-la à votre anniversaire, dans 1 an, 10 ans…" },
+                  { emoji: "💝", texte: "À l'ouverture, revivez ensemble chaque émotion, chaque surprise, chaque discours." },
+                ].map((etape, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+                    <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{etape.emoji}</span>
+                    <span style={{ fontSize: 13, color: COULEURS.encre, lineHeight: 1.5,
+                      fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{etape.texte}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ padding: "12px 20px 20px", borderTop: `1px solid ${COULEURS.bordure}` }}>
+              <BlocCodePromo
+                showPromo={showPromo} setShowPromo={setShowPromo}
+                codePromo={codePromo} setCodePromo={v => { setCodePromo(v); setPromoValide(null); }}
+                promoValide={promoValide} remisePromo={remisePromo}
+                promoChargement={promoChargement} onAppliquer={appliquerPromo} />
+              <button disabled={chargement}
+                onClick={() => acheterPack("pack_mariage", "mariage")}
+                style={{ width: "100%", padding: "14px 0", borderRadius: 16, border: "none",
+                  background: "linear-gradient(135deg,#9d1a4e,#c2185b)",
+                  color: "#fff", fontWeight: 800, fontSize: 15, cursor: chargement ? "default" : "pointer",
+                  fontFamily: "'Bricolage Grotesque', sans-serif", opacity: chargement ? 0.6 : 1,
+                  boxShadow: "0 4px 16px rgba(157,26,78,0.4)" }}>
+                {chargement ? "Redirection…"
+                  : promoValide && remisePromo === 100 ? "💍 Pack Mariage — Gratuit 🎉"
+                  : promoValide && remisePromo > 0 ? `💍 Acheter le Pack Mariage — ${prixReduit(2999, remisePromo)}`
+                  : "💍 Acheter le Pack Mariage — 29,99€"}
+              </button>
+              <p style={{ textAlign: "center", fontSize: 10, color: COULEURS.doux, margin: "8px 0 0" }}>
+                🔐 Stripe · Paiement unique · Accès immédiat
+              </p>
+            </div>
+          </>) : (<>
+
+          {/* ── PAPY / autres : bandeau coloré ── */}
+          <div style={{
+            background: drawerPack.gradient || DEGRADE,
+            padding: "36px 20px 12px",
+            display: "flex", flexDirection: "column", alignItems: "center",
+            position: "relative",
+          }}>
+            <button onClick={fermerDrawer} style={{
+              position: "absolute", top: 10, left: 14,
+              background: "rgba(255,255,255,0.3)", border: "none", borderRadius: 999,
+              padding: "5px 12px", fontSize: 12, fontWeight: 700,
+              color: COULEURS.encre, cursor: "pointer",
+            }}>← Retour</button>
+
+            <div style={{ fontSize: 36, marginBottom: 4 }}>{drawerPack.icone}</div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+              fontSize: 18, color: COULEURS.encre, textAlign: "center" }}>{drawerPack.nom}</div>
+            <div style={{ fontSize: 11, color: COULEURS.doux, textAlign: "center",
+              marginTop: 3, fontFamily: "'Plus Jakarta Sans', sans-serif",
+              lineHeight: 1.4, maxWidth: 260 }}>
+              Une fenêtre sur votre vie pour que Mamie et Papy ne ratent rien 👵👴
+            </div>
+            <div style={{ marginTop: 4, fontFamily: "'Bricolage Grotesque', sans-serif",
+              fontWeight: 900, fontSize: 22, color: COULEURS.encre }}>
+              4,99€<span style={{ fontSize: 12, fontWeight: 600 }}>/mois</span>
+            </div>
+            <div style={{ fontSize: 10, color: COULEURS.doux, marginTop: 1 }}>
+              ou 44,99€/an — économisez 15€
+            </div>
+          </div>
+
+          <div className="scrollbar-pack" style={{ flex: 1, overflowY: "auto", padding: "20px 20px 0" }}>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+                fontSize: 15, color: COULEURS.encre, marginBottom: 12 }}>Ce qui est inclus</div>
+              {(INCLUS_PAR_PACK[drawerPack.id] || []).map((item, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 12 }}>
+                  <span style={{ fontSize: 16, color: "#22C55E", flexShrink: 0 }}>✓</span>
+                  <span style={{ fontSize: 14, color: COULEURS.encre, lineHeight: "22px",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{item}</span>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+                fontSize: 15, color: COULEURS.encre, marginBottom: 12 }}>Comment ça fonctionne</div>
+              {[
+                { emoji: "📲", texte: "Vous souscrivez — une capsule est créée instantanément pour vos proches." },
+                { emoji: "🖼️", texte: "Toute la famille y dépose photos, vidéos et messages vocaux tout au long du mois." },
+                { emoji: "🔄", texte: "Le 1er de chaque mois, les quotas se renouvellent automatiquement." },
+                { emoji: "👵👴", texte: "Mamie et Papy consultent les souvenirs depuis une interface ultra-simplifiée, sans rien à installer." },
+                { emoji: "🔓", texte: "Résiliez à tout moment — vos souvenirs restent accessibles." },
+              ].map((etape, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 10 }}>
+                  <span style={{ fontSize: 16, flexShrink: 0, marginTop: 1 }}>{etape.emoji}</span>
+                  <span style={{ fontSize: 13, color: COULEURS.encre, lineHeight: 1.5,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{etape.texte}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ padding: "10px 20px 18px", borderTop: `1px solid ${COULEURS.bordure}` }}>
+            {/* Code promo */}
+            <BlocCodePromo
+              showPromo={showPromo} setShowPromo={setShowPromo}
+              codePromo={codePromo} setCodePromo={v => { setCodePromo(v); setPromoValide(null); }}
+              promoValide={promoValide} remisePromo={remisePromo}
+              promoChargement={promoChargement} onAppliquer={appliquerPromo} />
+            <button disabled={chargement}
+              onClick={() => acheterPack(`pack_${drawerPack.id}_mensuel`, drawerPack.id)}
+              style={{ ...S.boutonPrincipal, fontSize: 13, padding: "10px 16px", marginTop: 0, opacity: chargement ? 0.6 : 1 }}>
+              {chargement ? "Redirection…" : promoValide && remisePromo === 100
+                ? "Gratuit 🎉 — résiliable à tout moment"
+                : promoValide && remisePromo > 0
+                  ? `${prixReduit(499, remisePromo)}/mois — résiliable à tout moment`
+                  : "4,99€/mois — résiliable à tout moment"}
+            </button>
+            <button disabled={chargement}
+              onClick={() => acheterPack(`pack_${drawerPack.id}_annuel`, drawerPack.id)}
+              style={{ ...S.boutonSecondaire, fontSize: 12, padding: "9px 16px", marginTop: 7 }}>
+              {promoValide && remisePromo > 0
+                ? `${prixReduit(4499, remisePromo)}/an — code appliqué`
+                : "44,99€/an — économisez 15€"}
+            </button>
+            <p style={{ textAlign: "center", fontSize: 9, color: COULEURS.doux, margin: "7px 0 0" }}>
+              🔐 Stripe · 🇪🇺 Europe · Annulation à tout moment
+            </p>
+          </div>
+          </>)}
+        </div>
+      )}
+
+      {/* ── Drawer 62% pour les autres packs (occasion, mariage, gratuit) ── */}
+      {drawerPack && !drawerPack.pleinePage && (
+        <div
+          style={{ position: "absolute", inset: 0, zIndex: 400, background: "transparent" }}
+          onClick={fermerDrawer}>
+          <div
+            style={{
+              position: "absolute", bottom: 0, left: 0, right: 0,
+              height: "62%",
+              background: "var(--carte-bg)",
+              borderRadius: "24px 24px 0 0",
+              display: "flex", flexDirection: "column",
+              boxShadow: "0 -12px 40px rgba(46,34,48,0.22)",
+              animation: "slideUp 0.28s ease",
+            }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* Drag handle */}
+            <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 4px" }}>
+              <div style={{ width: 38, height: 4, borderRadius: 99, background: COULEURS.bordure }} />
+            </div>
+
+            {/* En-tête : icône + nom */}
+            <div style={{ textAlign: "center", padding: "6px 20px 0" }}>
+              <div style={{ fontSize: 36, marginBottom: 4 }}>{drawerPack.icone}</div>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: 18, color: COULEURS.encre }}>{drawerPack.nom}</div>
+            </div>
+
+            {/* Zone scrollable */}
+            <div className="scrollbar-pack" style={{ flex: 1, overflowY: "auto", padding: "12px 20px 0" }}>
+              <div style={{ marginBottom: 16 }}>
+                {(INCLUS_PAR_PACK[
+                  drawerPack.id === "gratuit" ? "gratuit"
+                  : drawerPack.id === "mariage" ? "mariage"
+                  : "occasion"
+                ] || INCLUS_PAR_PACK.occasion).map((item, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, color: "#22C55E", flexShrink: 0, lineHeight: "20px" }}>✓</span>
+                    <span style={{ fontSize: 13, color: COULEURS.encre, lineHeight: "20px",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{item}</span>
+                  </div>
+                ))}
+              </div>
+
+            </div>
+
+            {/* CTAs */}
+            <div style={{ padding: "12px 20px 22px", flexShrink: 0, borderTop: `1px solid ${COULEURS.bordure}` }}>
+              {drawerPack.categorie !== "gratuit" && (
+                <BlocCodePromo
+                  showPromo={showPromo} setShowPromo={setShowPromo}
+                  codePromo={codePromo} setCodePromo={v => { setCodePromo(v); setPromoValide(null); }}
+                  promoValide={promoValide} remisePromo={remisePromo}
+                  promoChargement={promoChargement} onAppliquer={appliquerPromo} />
+              )}
+              {drawerPack.categorie === "gratuit" ? (
+                <button disabled={chargement}
+                  onClick={async () => {
+                    setChargement(true);
+                    try {
+                      const nom = nomCapsule.trim() || "Ma capsule";
+                      await creerCapsule({ nom, type: "amis", dateOuverture: null, couverture: null });
+                      fermerDrawer();
+                    } catch (e) {
+                      alert("Erreur : " + e.message);
+                    } finally { setChargement(false); }
+                  }}
+                  style={{ ...S.boutonPrincipal, opacity: chargement ? 0.6 : 1 }}>
+                  {chargement ? "Création…" : "Créer ma capsule →"}
+                </button>
+              ) : (
+                <button disabled={chargement}
+                  onClick={() => acheterPack(
+                    drawerPack.id === "mariage" ? "pack_mariage" : "pack_occasion",
+                    drawerPack.id === "mariage" ? "mariage" : "occasion"
+                  )}
+                  style={{ ...S.boutonPrincipal, opacity: chargement ? 0.6 : 1 }}>
+                  {chargement ? "Redirection…"
+                    : promoValide && remisePromo === 100 ? "Gratuit 🎉 →"
+                    : promoValide && remisePromo > 0
+                      ? `Payer ${prixReduit(drawerPack.id === "mariage" ? 2999 : 999, remisePromo)} →`
+                      : `Payer ${drawerPack.id === "mariage" ? "29,99€" : "9,99€"} →`}
+                </button>
+              )}
+              {drawerPack.categorie !== "gratuit" && (
+                <p style={{ textAlign: "center", fontSize: 11, color: COULEURS.doux, margin: "10px 0 0" }}>
+                  🔐 Stripe · 🇪🇺 Europe · Annulation à tout moment
+                </p>
+              )}
+              <button onClick={fermerDrawer}
+                style={{ display: "block", width: "100%", background: "none", border: "none",
+                  color: COULEURS.doux, fontSize: 13, cursor: "pointer", marginTop: 8,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Pas maintenant
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// !! Ancienne fonction EcranPacks conservée pour compat — renvoie null, plus utilisée
+function EcranPacks({ moi, capsules, allerVers, creerCapsule, onPaywall }) {
+  const [packChoisi,    setPackChoisi]    = useState(null);
+  const [modalType,     setModalType]     = useState(null);
+  const [nomCapsule,    setNomCapsule]    = useState("");
+  const [destination,   setDestination]  = useState("");
+  const [chargement,    setChargement]   = useState(false);
+
+  function packInclus(pack) {
+    return false;
+  }
+
+  // Gère le clic sur "Créer ce pack →"
+  function cliquerPack(pack) {
+    setPackChoisi(pack);
+    setDestination("");
+
+    // Pack Mamie/Papy réservé à Rituel — si abonné Plus mais pas Rituel
+    if (pack.inclus === "rituel" && estPlus(moi) && !estRituel(moi)) {
+      setModalType("achat");
+      return;
+    }
+
+    if (estPlus(moi) || estRituel(moi)) {
+      // Vérifie la limite de capsules actives avant d'ouvrir la modal de perso
+      const actives = capsules.filter(c => c.createurId === moi?.id && !c.ouverte).length;
+      if (!peutCreerCapsule(moi, actives)) {
+        onPaywall && onPaywall("capsule_limite");
+        setPackChoisi(null);
+        return;
+      }
+      // Pré-remplit le nom selon le pack
+      setNomCapsule(pack.nomDefault(""));
+      setModalType("perso");
+    } else {
+      // Non abonné → modal d'achat
+      setModalType("achat");
+    }
+  }
+
+  // Crée la capsule et navigue vers l'écran d'invitation
+  async function validerCreation() {
+    if (!packChoisi || !nomCapsule.trim()) return;
+    setChargement(true);
+    try {
+      const nom  = packChoisi.champDestination && destination.trim()
+        ? packChoisi.nomDefault(destination.trim())
+        : nomCapsule.trim();
+      const capsuleId = await creerCapsule({
+        nom,
+        type:          packChoisi.typeCapsule,
+        dateOuverture: packChoisi.dateOuverture(),
+        couverture:    null,
+      });
+      fermerModals();
+      // Redirige directement vers l'écran d'invitation pour partager le QR code immédiatement
+      if (capsuleId) allerVers("inviter", capsuleId);
+    } finally {
+      setChargement(false);
+    }
+  }
+
+  function fermerModals() { setModalType(null); setPackChoisi(null); setNomCapsule(""); setDestination(""); }
+
+  // Lance une session Stripe Checkout pour l'achat one-shot d'un pack
+  async function acheterPack(pack) {
+    setChargement(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: {
+          plan_id:     pack.stripeId,
+          user_id:     moi?.id,
+          success_url: `${window.location.origin}?checkout=success`,
+          cancel_url:  `${window.location.origin}?checkout=cancelled`,
+        },
+      });
+      if (error || !data?.url) throw new Error(error?.message || "Erreur");
+      window.location.href = data.url;
+    } catch (e) {
+      alert("Impossible d'accéder au paiement : " + e.message);
+      setChargement(false);
+    }
+  }
+
+  return (
+    <div style={S.ecran}>
+      {/* ── En-tête ── */}
+      <div style={S.enteteAccueil}>
+        <p style={S.surtitre}>Catalogue</p>
+        <h1 style={S.titrePage}>Packs prêts à l'emploi ✨</h1>
+        <p style={{ fontSize: 13, color: COULEURS.doux, margin: "4px 0 0" }}>
+          Tout est configuré. Créez en 30 secondes.
+        </p>
+      </div>
+
+      {/* ── Bandeau abonnement ── */}
+      {estPlus(moi) ? (
+        <div style={{ background: "#E8F5E9", borderRadius: 14, padding: "10px 14px",
+          display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+          <span style={{ fontSize: 18 }}>✅</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#2E7D32" }}>
+            Ces packs sont inclus dans votre abonnement
+          </span>
+        </div>
+      ) : (
+        <div style={{ background: "linear-gradient(120deg,#FF8A3D18,#FF5C9D18)",
+          border: `1px solid ${COULEURS.corail}28`, borderRadius: 14,
+          padding: "12px 14px", marginBottom: 20 }}>
+          <p style={{ fontSize: 12, color: COULEURS.encre, fontWeight: 600, margin: "0 0 8px" }}>
+            🎁 Tous ces packs sont inclus avec Blooom Plus à 2,08€/mois
+          </p>
+          <button onClick={() => allerVers("abonnement")}
+            style={{ background: DEGRADE, color: "#fff", border: "none", borderRadius: 10,
+              padding: "8px 16px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+              fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            Passer à Plus — 24,99€/an →
+          </button>
+        </div>
+      )}
+
+      {/* ── Cards des packs ── */}
+      {PACKS_ECRAN.map(pack => {
+        const inclus = packInclus(pack);
+        return (
+          <div key={pack.id} style={{ background: "var(--carte-bg)", borderRadius: 22,
+            overflow: "hidden", marginBottom: 16,
+            boxShadow: "0 6px 20px rgba(46,34,48,0.1)" }}>
+
+            {/* Bandeau coloré en haut */}
+            <div style={{ height: 120, background: pack.couleur,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              position: "relative" }}>
+              <span style={{ fontSize: 56, filter: "drop-shadow(0 4px 12px rgba(0,0,0,0.2))" }}>
+                {pack.icone}
+              </span>
+              {/* Badge spécial (ex. Rituel) */}
+              {pack.badgeSpecial && (
+                <div style={{ position: "absolute", top: 10, right: 12,
+                  background: "rgba(255,255,255,0.22)", backdropFilter: "blur(6px)",
+                  borderRadius: 999, padding: "3px 10px",
+                  fontSize: 10, fontWeight: 800, color: "#fff" }}>
+                  {pack.badgeSpecial}
+                </div>
+              )}
+              {/* Badge "Inclus" si abonné */}
+              {inclus && (
+                <div style={{ position: "absolute", top: 10, left: 12,
+                  background: "rgba(34,199,184,0.9)", borderRadius: 999,
+                  padding: "3px 10px", fontSize: 10, fontWeight: 800, color: "#fff" }}>
+                  ✓ Inclus
+                </div>
+              )}
+            </div>
+
+            {/* Corps de la card */}
+            <div style={{ padding: "16px 16px 18px" }}>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: 18, color: COULEURS.encre, marginBottom: 4 }}>{pack.nom}</div>
+              <p style={{ fontSize: 13, color: COULEURS.doux, margin: "0 0 14px",
+                lineHeight: 1.4 }}>{pack.description}</p>
+
+              {/* Avantages */}
+              {pack.avantages.map((a, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+                  <span style={{ fontSize: 13, color: pack.couleur, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>✓</span>
+                  <span style={{ fontSize: 13, color: COULEURS.encre, lineHeight: 1.4 }}>{a}</span>
+                </div>
+              ))}
+
+              {/* Ligne prix */}
+              <div style={{ marginTop: 14, marginBottom: 12 }}>
+                {inclus ? (
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#2E7D32" }}>
+                    ✓ Inclus dans votre abonnement
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12, color: COULEURS.doux }}>
+                    <span style={{ fontWeight: 800, color: COULEURS.encre }}>{pack.prixLabel}</span>
+                    {" · ou inclus avec "}
+                    <span style={{ fontWeight: 700, color: COULEURS.corail }}>
+                      {pack.inclus === "rituel" ? "Rituel à 49,99€/an" : "Plus à 24,99€/an"}
+                    </span>
+                  </span>
+                )}
+              </div>
+
+              {/* CTA */}
+              <button
+                onClick={() => cliquerPack(pack)}
+                style={{
+                  width: "100%", padding: "13px 0", borderRadius: 14,
+                  fontSize: 14, fontWeight: 700, cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  ...(inclus
+                    ? { background: DEGRADE, color: "#fff", border: "none",
+                        boxShadow: "0 6px 18px rgba(255,92,157,0.35)" }
+                    : { background: "transparent", color: pack.couleur,
+                        border: `2px solid ${pack.couleur}` }),
+                }}>
+                Créer ce pack →
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {/* ── Modal achat (non abonné ou pack Rituel sans Rituel) ── */}
+      {modalType === "achat" && packChoisi && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 400,
+          background: "rgba(46,34,48,0.85)", backdropFilter: "blur(6px)",
+          display: "flex", alignItems: "flex-end",
+          animation: "fadeSlideUp 0.3s ease both" }}
+          onClick={fermerModals}>
+          <div style={{ background: "var(--carte-bg)", borderRadius: "28px 28px 20px 20px",
+            padding: "28px 22px 28px", width: "100%",
+            boxShadow: "0 -10px 40px rgba(46,34,48,0.25)" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 48, marginBottom: 8 }}>{packChoisi.icone}</div>
+              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                fontSize: 18, color: COULEURS.encre, marginBottom: 6 }}>
+                {packChoisi.nom}
+              </div>
+              <p style={{ fontSize: 13, color: COULEURS.doux, margin: 0, lineHeight: 1.5 }}>
+                {packChoisi.inclus === "rituel" && estPlus(moi)
+                  ? "Ce pack est réservé à Blooom Rituel. Passez à Rituel pour en profiter."
+                  : "Achetez ce pack à l'unité ou profitez de tous les packs avec Plus."}
+              </p>
+            </div>
+
+            {/* Option 1 : acheter le pack seul */}
+            <button onClick={() => acheterPack(packChoisi)} disabled={chargement}
+              style={{ ...S.boutonPrincipal, marginTop: 0, opacity: chargement ? 0.6 : 1 }}>
+              {chargement ? "Redirection…" : `Acheter ce pack — ${packChoisi.prixLabel}`}
+            </button>
+
+            {/* Option 2 : passer à Plus (ou Rituel si nécessaire) */}
+            <button onClick={() => { fermerModals(); allerVers("abonnement"); }}
+              style={{ ...S.boutonSecondaire, marginTop: 10, fontSize: 13 }}>
+              {packChoisi.inclus === "rituel"
+                ? "Passer à Blooom Rituel — 49,99€/an"
+                : "Passer à Blooom Plus — 24,99€/an"}
+            </button>
+
+            <button onClick={fermerModals}
+              style={{ display: "block", width: "100%", background: "none", border: "none",
+                color: COULEURS.doux, fontSize: 13, cursor: "pointer", marginTop: 10,
+                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Pas maintenant
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal personnalisation (abonné) ── */}
+      {modalType === "perso" && packChoisi && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 400,
+          background: "rgba(46,34,48,0.85)", backdropFilter: "blur(6px)",
+          display: "flex", alignItems: "flex-end",
+          animation: "fadeSlideUp 0.3s ease both" }}
+          onClick={fermerModals}>
+          <div style={{ background: "var(--carte-bg)", borderRadius: "28px 28px 20px 20px",
+            padding: "24px 20px 28px", width: "100%",
+            boxShadow: "0 -10px 40px rgba(46,34,48,0.25)" }}
+            onClick={e => e.stopPropagation()}>
+
+            {/* En-tête de la modal */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 14,
+                background: packChoisi.couleur, display: "flex", alignItems: "center",
+                justifyContent: "center", fontSize: 24, flexShrink: 0 }}>
+                {packChoisi.icone}
+              </div>
+              <div>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+                  fontSize: 16, color: COULEURS.encre }}>Personnaliser le pack</div>
+                <div style={{ fontSize: 12, color: COULEURS.doux, marginTop: 2 }}>{packChoisi.nom}</div>
+              </div>
+            </div>
+
+            {/* Champ destination (Pack Voyage uniquement) */}
+            {packChoisi.champDestination && (
+              <>
+                <label style={S.label}>Destination (optionnel)</label>
+                <input style={S.input} placeholder="Ex. Barcelone, Japon…"
+                  value={destination} onChange={e => {
+                    setDestination(e.target.value);
+                    setNomCapsule(packChoisi.nomDefault(e.target.value));
+                  }} />
+              </>
+            )}
+
+            {/* Nom de la capsule pré-rempli */}
+            <label style={S.label}>Nom de la capsule</label>
+            <input style={S.input} value={nomCapsule}
+              onChange={e => setNomCapsule(e.target.value)} />
+            <p style={{ ...S.aide, marginTop: 4 }}>
+              Ouverture prévue le {new Date(packChoisi.dateOuverture()).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+            </p>
+
+            <button onClick={validerCreation}
+              disabled={!nomCapsule.trim() || chargement}
+              style={{ ...S.boutonPrincipal, ...(!nomCapsule.trim() || chargement ? S.boutonDesactive : {}), marginTop: 14 }}>
+              {chargement ? "Création…" : "Créer et inviter →"}
+            </button>
+            <button onClick={fermerModals}
+              style={{ display: "block", width: "100%", background: "none", border: "none",
+                color: COULEURS.doux, fontSize: 13, cursor: "pointer", marginTop: 10,
+                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Barre de navigation principale — 3 onglets uniquement : Capsules · Créer · Profil.
+// Paramètres est accessible depuis l'écran Profil.
+function BarreOnglets({ actif, allerVers, hasPapy }) {
   return (
     <div style={S.barreOnglets}>
-      {onglets.map((o) => (
-        <button key={o.cle} style={{ ...S.onglet, ...(actif === o.cle ? S.ongletActif : {}) }}
-          onClick={() => allerVers(o.cle)}>
-          <div style={{ fontSize: 20 }}>{o.icone}</div>
-          <div style={S.ongletNom}>{o.nom}</div>
+
+      {/* Onglet Capsules */}
+      <button style={{ ...S.onglet, ...(actif === "capsules" ? S.ongletActif : {}) }}
+        onClick={() => allerVers("capsules")}>
+        <div style={{ fontSize: 20 }}>⏳</div>
+        <div style={S.ongletNom}>Capsules</div>
+      </button>
+
+      {/* Onglet Packs */}
+      <button style={{ ...S.onglet, ...(actif === "creer" ? S.ongletActif : {}) }}
+        onClick={() => allerVers("creer")}>
+        <div style={{ fontSize: 20, transition: "transform 0.15s ease", transform: actif === "creer" ? "scale(1.15)" : "scale(1)" }}>🎁</div>
+        <div style={S.ongletNom}>Packs</div>
+      </button>
+
+      {/* Onglet Papy/Mamie — visible uniquement si le pack est activé */}
+      {hasPapy && (
+        <button style={{ ...S.onglet, ...(actif === "papy" ? S.ongletActif : {}) }}
+          onClick={() => allerVers("papy")}>
+          <div style={{ fontSize: 20 }}>👴</div>
+          <div style={S.ongletNom}>Papy/Mamie</div>
         </button>
-      ))}
+      )}
+
+      {/* Onglet Profil */}
+      <button style={{ ...S.onglet, ...(actif === "profil" ? S.ongletActif : {}) }}
+        onClick={() => allerVers("profil")}>
+        <div style={{ fontSize: 20 }}>👤</div>
+        <div style={S.ongletNom}>Profil</div>
+      </button>
+
     </div>
   );
 }
@@ -724,7 +2279,7 @@ function BarreOnglets({ actif, allerVers }) {
 // ============================================================================
 
 function ColonnePicker({ items, selected, onSelect, renderItem, flex = 1 }) {
-  const ITEM_H = 40;
+  const ITEM_H = 28;
   const VISIBLE = 3;
   const selectedIdx = Math.max(0, items.indexOf(selected));
   const [offset, setOffset] = React.useState(0);
@@ -773,7 +2328,7 @@ function ColonnePicker({ items, selected, onSelect, renderItem, flex = 1 }) {
           const dist = Math.abs(i - selectedIdx);
           return (
             <div key={String(item)} style={{ height: ITEM_H, display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: dist === 0 ? 16 : 13, fontWeight: dist === 0 ? 700 : 400,
+              fontSize: dist === 0 ? 13 : 11, fontWeight: dist === 0 ? 700 : 400,
               color: COULEURS.encre, opacity: dist === 0 ? 1 : dist === 1 ? 0.45 : 0.15,
               fontFamily: "'Plus Jakarta Sans', sans-serif", position: "relative", zIndex: 1 }}>
               {renderItem(item)}
@@ -835,7 +2390,7 @@ function SelecteurDate({ valeur, onChange }) {
   return (
     <div style={{ background: "#fff", borderRadius: 20, overflow: "hidden", boxShadow: "0 4px 14px rgba(46,34,48,0.07)", marginTop: 8, flexShrink: 0 }}>
       {/* En-têtes de colonnes */}
-      <div style={{ display: "flex", borderBottom: `1px solid ${COULEURS.bordure}`, padding: "7px 0 6px" }}>
+      <div style={{ display: "flex", borderBottom: `1px solid ${COULEURS.bordure}`, padding: "5px 0 4px" }}>
         {["JOUR","MOIS","ANNÉE"].map(l => (
           <div key={l} style={{ flex: 1, textAlign: "center", fontSize: 10, fontWeight: 700, color: COULEURS.doux, letterSpacing: 1 }}>{l}</div>
         ))}
@@ -947,67 +2502,6 @@ function PanneauNotifications({ notifications, onMarquerLue, onFermer, allerVers
 // ============================================================================
 //  ÉCRAN QUIZ D'OUVERTURE — mini jeu avant l'animation
 // ============================================================================
-function EcranQuizOuverture({ capsule, allerVers, onRepondre }) {
-  const vraiNb = capsule?.contributions?.length || 0;
-  const [repondu, setRepondu] = React.useState(false);
-  const [choix, setChoix] = React.useState(null);
-
-  const propositions = React.useMemo(() => {
-    const fausses = new Set();
-    while (fausses.size < 3) {
-      const ecart = Math.floor(Math.random() * 7) + 1;
-      const val = Math.max(1, vraiNb + (Math.random() > 0.5 ? ecart : -ecart));
-      if (val !== vraiNb) fausses.add(val);
-    }
-    return [...fausses, vraiNb].sort(() => Math.random() - 0.5);
-  }, [vraiNb]);
-
-  function choisir(val) {
-    if (repondu) return;
-    setChoix(val);
-    setRepondu(true);
-    onRepondre(val);
-  }
-
-  if (!capsule) return null;
-  return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", justifyContent: "center", alignItems: "center", padding: "0 24px", textAlign: "center" }}>
-      <div style={{ fontSize: 48, marginBottom: 16 }}>🔮</div>
-      <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontSize: 22, fontWeight: 800, color: "#2E2230", margin: "0 0 10px" }}>
-        Quiz d'ouverture
-      </h2>
-      <p style={{ fontSize: 15, color: "#9B8AA0", marginBottom: 28, lineHeight: 1.6, margin: "0 0 28px" }}>
-        Combien de souvenirs y a-t-il dans <strong style={{ color: "#2E2230" }}>{capsule.nom}</strong> ?
-      </p>
-      <div style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 24 }}>
-        {propositions.map(val => {
-          let bg = "#fff", color = "#2E2230", border = "2px solid #f0ecf1";
-          if (repondu) {
-            if (val === vraiNb) { bg = "#e8f8f0"; color = "#1a7a4b"; border = "2px solid #1a7a4b"; }
-            else if (val === choix) { bg = "#ffeef0"; color = "#c0392b"; border = "2px solid #e74c3c"; }
-          }
-          return (
-            <button key={val} onClick={() => choisir(val)} disabled={repondu}
-              style={{ background: bg, border, borderRadius: 16, padding: "20px 8px", fontSize: 28, fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, color, cursor: repondu ? "default" : "pointer", transition: "all 0.3s" }}>
-              {val}
-            </button>
-          );
-        })}
-      </div>
-      {repondu && (
-        <>
-          <p style={{ fontSize: 17, fontWeight: 700, color: choix === vraiNb ? "#1a7a4b" : "#FF6B5E", margin: "0 0 20px" }}>
-            {choix === vraiNb ? "🎉 Exact !" : `Raté… c'est ${vraiNb} souvenir${vraiNb > 1 ? "s" : ""} !`}
-          </p>
-          <button style={{ background: "linear-gradient(120deg,#FF8A3D 0%,#FF5C9D 100%)", color: "#fff", border: "none", borderRadius: 16, padding: "16px 32px", fontSize: 16, fontWeight: 700, cursor: "pointer" }}
-            onClick={() => allerVers("animation_ouverture", capsule.id)}>
-            Ouvrir la capsule →
-          </button>
-        </>
-      )}
-    </div>
-  );
-}
 
 // ============================================================================
 //  RÉACTION FLOTTANTE — emoji qui monte et disparaît (Realtime broadcast)
@@ -1076,6 +2570,8 @@ function SectionVoteFavori({ capsule, moisParticipantId, voterFavori }) {
 }
 
 function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirNotifs }) {
+  const aucuneCapsuleActive = capsules.filter(c => !c.ouverte).length === 0;
+
   return (
     <div style={S.ecran}>
       <div style={{ ...S.enteteAccueil, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
@@ -1085,6 +2581,27 @@ function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirN
         </div>
         {onOuvrirNotifs && <ClocheNotifications notifications={notifications} onClick={onOuvrirNotifs} />}
       </div>
+
+
+      {/* Bannière plan gratuit — visible uniquement si aucune capsule active */}
+      {aucuneCapsuleActive && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+          background: "#fff", borderRadius: 16, padding: "12px 16px",
+          boxShadow: "0 2px 10px rgba(46,34,48,0.06)", marginBottom: 14, gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: COULEURS.encre, marginBottom: 3 }}>
+              ✨ Gratuit pour toujours
+            </div>
+            <div style={{ fontSize: 11, color: COULEURS.doux, lineHeight: 1.4 }}>
+              1 capsule · 30 photos · Participants illimités
+            </div>
+          </div>
+          <div style={{ flexShrink: 0, background: "#dcfce7", color: "#16a34a",
+            fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "4px 10px", whiteSpace: "nowrap" }}>
+            Gratuit
+          </div>
+        </div>
+      )}
 
       <button style={S.boutonPrincipal} onClick={() => allerVers("creation")}>+ Nouvelle capsule</button>
       {/* NOUVEAU : rejoindre une capsule existante avec un code reçu. */}
@@ -1116,11 +2633,45 @@ function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirN
             return Math.min(100, Math.max(0, (Date.now() - debut) / (fin - debut) * 100));
           })();
 
+          const estMariage = c.formule === "mariage";
+          const estPapy    = c.formule === "papy";
+          const styleCarteMariage = estMariage ? {
+            border: "2px solid #C9A84C",
+            boxShadow: "0 8px 32px rgba(201,168,76,0.35), 0 2px 8px rgba(131,24,67,0.15)",
+            background: "#FFFBF0",
+          } : {};
+          const styleCartePapy = estPapy ? {
+            border: "2px solid #FF8C5A",
+            boxShadow: "0 8px 28px rgba(255,140,90,0.30), 0 2px 8px rgba(194,90,32,0.12)",
+            background: "#FFF8F4",
+          } : {};
+
           return (
-            <button key={c.id} style={S.carteCapsule} onClick={() => allerVers("detail", c.id)}>
+            <button key={c.id} style={{ ...S.carteCapsule, ...styleCarteMariage, ...styleCartePapy }} onClick={() => allerVers("detail", c.id)}>
               <div style={{ ...S.carteCouverture,
-                background: c.couverture ? `url(${c.couverture}) center/cover` : teinte }}>
-                {!c.couverture && <span style={{ fontSize: 34 }}>{typeInfo?.icone || "✨"}</span>}
+                background: estMariage && !c.couverture
+                  ? "linear-gradient(135deg,#3D0C11 0%,#831843 45%,#BE185D 75%,#C9A84C 100%)"
+                  : estPapy && !c.couverture
+                    ? "linear-gradient(135deg,#C25A20 0%,#FF8C5A 60%,#FFB37A 100%)"
+                    : c.couverture ? `url(${c.couverture}) center/cover` : teinte,
+                position: "relative", overflow: "hidden" }}>
+                {!c.couverture && <span style={{ fontSize: 34 }}>{estMariage ? "💍" : estPapy ? "👴" : typeInfo?.icone || "✨"}</span>}
+                {estMariage && (
+                  <>
+                    <span style={{ position:"absolute", top:6,  left:10,  fontSize:16, opacity:0.85 }}>✨</span>
+                    <span style={{ position:"absolute", top:8,  right:14, fontSize:13, opacity:0.75 }}>💫</span>
+                    <span style={{ position:"absolute", bottom:8, left:18, fontSize:11, opacity:0.70 }}>✨</span>
+                    <span style={{ position:"absolute", bottom:6, right:10, fontSize:14, opacity:0.80 }}>⭐</span>
+                    <span style={{ position:"absolute", top:22, left:"45%",fontSize:10, opacity:0.65 }}>💫</span>
+                  </>
+                )}
+                {estPapy && (
+                  <div style={{ position:"absolute", top:8, left:10,
+                    background:"rgba(255,255,255,.85)", borderRadius:10,
+                    padding:"3px 9px", fontSize:10, fontWeight:700, color:"#C25A20" }}>
+                    📅 Mensuel
+                  </div>
+                )}
                 <span style={S.cartePastille}>{c.contributions.length}</span>
               </div>
               <div style={{ padding: "12px 14px", textAlign: "left" }}>
@@ -1143,14 +2694,36 @@ function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirN
                   </div>
                 )}
 
+                {/* Stockage — affiché uniquement sur les capsules non encore ouvertes */}
+                {!c.ouverte && <IndicateurStockage capsule={c} compact />}
+
+                {/* Bandeau upgrade — visible uniquement pour les capsules gratuites non ouvertes */}
+                {!c.ouverte && (c.formule === "gratuit" || !c.formule) && (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginTop: 10, padding: "7px 10px", borderRadius: 10,
+                    background: COULEURS.corail + "12", gap: 8 }}>
+                    <span style={{ fontSize: 11, color: COULEURS.doux,
+                      fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      Max : 30 photos
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); allerVers("upgrade_media", c.id); }}
+                      style={{ fontSize: 11, fontWeight: 700, color: COULEURS.corail,
+                        background: "none", border: "none", cursor: "pointer", whiteSpace: "nowrap",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif", padding: 0 }}>
+                      Ajouter des souvenirs →
+                    </button>
+                  </div>
+                )}
+
                 {/* Avatars des participants de CETTE capsule (per-capsule). */}
-                <div style={{ display: "flex", marginTop: 8, alignItems: "center" }}>
+                <div style={{ display: "flex", marginTop: 3, alignItems: "center" }}>
                   {c.participants.slice(0, 5).map((p, i) => (
-                    <div key={p.id} style={{ marginLeft: i === 0 ? 0 : -8, border: "2px solid #fff", borderRadius: "50%" }}>
-                      <Avatar membre={p} taille={26} />
+                    <div key={p.id} style={{ marginLeft: i === 0 ? 0 : -2, border: "1px solid #fff", borderRadius: "50%" }}>
+                      <Avatar membre={p} taille={7} />
                     </div>
                   ))}
-                  <span style={{ marginLeft: 8, fontSize: 13, color: COULEURS.doux, fontWeight: 600 }}>
+                  <span style={{ marginLeft: 4, fontSize: 9, color: COULEURS.doux, fontWeight: 600 }}>
                     {c.participants.length} participant{c.participants.length > 1 ? "s" : ""}
                   </span>
                 </div>
@@ -1166,12 +2739,37 @@ function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirN
 // ============================================================================
 //  ÉCRAN PROFIL : votre identité globale (réutilisée comme participant).
 // ============================================================================
-function EcranProfil({ moi, capsules, modifierMoi }) {
-  const [prenom, setPrenom]       = useState(moi.prenom);
+function EcranModifierProfil({ moi, modifierMoi, allerVers }) {
+  const [prenom, setPrenom]           = useState(moi.prenom);
   const [description, setDescription] = useState(moi.description || "");
-  const [photo, setPhoto]         = useState(moi.photo || null);
-  const [enregistre, setEnregistre] = useState(false);
+  const [photo, setPhoto]             = useState(moi.photo || null);
+  const [enregistre, setEnregistre]   = useState(false);
 
+  async function enregistrer() {
+    await modifierMoi({ prenom: prenom.trim(), description: description.trim(), photo });
+    setEnregistre(true);
+    setTimeout(() => { setEnregistre(false); allerVers("profil"); }, 1200);
+  }
+
+  return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="Modifier mon profil" onRetour={() => allerVers("profil")} />
+      <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 18px" }}>
+        <SelecteurPhotoProfil photo={photo} couleur={moi.couleur} prenom={prenom} onChange={setPhoto} />
+      </div>
+      <label style={S.label}>Prénom</label>
+      <input style={S.input} value={prenom} onChange={e => setPrenom(e.target.value)} />
+      <label style={S.label}>Description</label>
+      <input style={S.input} placeholder="Ex. Papa de Léo et Emma…" value={description} onChange={e => setDescription(e.target.value)} />
+      <button style={{ ...S.boutonPrincipal, ...(!prenom.trim() ? S.boutonDesactive : {}) }} disabled={!prenom.trim()} onClick={enregistrer}>
+        {enregistre ? "✓ Enregistré !" : "Enregistrer"}
+      </button>
+      <p style={S.aide}>Ces informations vous représentent quand vous créez ou rejoignez une capsule.</p>
+    </div>
+  );
+}
+
+function EcranProfil({ moi, capsules, gami, modifierMoi, allerVers }) {
   // Stats parrainage chargées depuis Supabase
   const [statsParrainage, setStatsParrainage] = useState(null);
   const [copie, setCopie] = useState(false);
@@ -1195,20 +2793,14 @@ function EcranProfil({ moi, capsules, modifierMoi }) {
       });
   }, [moi.id]);
 
-  async function enregistrer() {
-    await modifierMoi({ prenom: prenom.trim(), description: description.trim(), photo });
-    setEnregistre(true);
-    setTimeout(() => setEnregistre(false), 2000);
-  }
-
   // Partage via Web Share API (mobile) ou copie dans le presse-papiers
   function partagerLienParrainage() {
     if (!lienParrainage) return;
+    const message = `Crée une capsule temporelle avec moi. Tu recevras 1 mois d'abonnement OFFERT !\n${lienParrainage}`;
     if (navigator.share) {
       navigator.share({
         title: "Rejoins-moi sur Blooom 🌸",
-        text: "Crée une capsule temporelle avec moi. Tu recevras 1 mois de Plus offert !",
-        url: lienParrainage,
+        text: message,
       }).catch(() => {});
     } else {
       copierLienParrainage();
@@ -1217,13 +2809,12 @@ function EcranProfil({ moi, capsules, modifierMoi }) {
 
   function copierLienParrainage() {
     if (!lienParrainage) return;
-    navigator.clipboard.writeText(lienParrainage).then(() => {
+    const message = `Crée une capsule temporelle avec moi. Tu recevras 1 mois d'abonnement OFFERT !\n${lienParrainage}`;
+    navigator.clipboard.writeText(message).then(() => {
       setCopie(true);
       setTimeout(() => setCopie(false), 2000);
     }).catch(() => {});
   }
-
-  const plusActif = moi.plusExpiresAt && new Date(moi.plusExpiresAt) > new Date();
 
   return (
     <div style={S.ecran}>
@@ -1231,72 +2822,180 @@ function EcranProfil({ moi, capsules, modifierMoi }) {
         <p style={S.surtitre}>Votre fiche</p>
         <h1 style={S.titrePage}>Profil</h1>
       </div>
-      <div style={{ display: "flex", justifyContent: "center", margin: "8px 0 18px" }}>
-        <SelecteurPhotoProfil photo={photo} couleur={moi.couleur} prenom={prenom} onChange={setPhoto} />
+
+      {/* Aperçu profil */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14, background: "var(--carte-bg)",
+        borderRadius: 20, padding: "14px 16px", boxShadow: "0 4px 14px rgba(46,34,48,0.07)", marginBottom: 4 }}>
+        <div style={{ width: 56, height: 56, borderRadius: "50%", flexShrink: 0, overflow: "hidden",
+          background: moi.couleur || COULEURS.corail, display: "flex", alignItems: "center",
+          justifyContent: "center", fontSize: 22, fontWeight: 800, color: "#fff" }}>
+          {moi.photo
+            ? <img src={moi.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : initiales(moi.prenom)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+            fontSize: 17, color: COULEURS.encre }}>{moi.prenom}</div>
+          {moi.description && (
+            <div style={{ fontSize: 13, color: COULEURS.doux, marginTop: 2,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {moi.description}
+            </div>
+          )}
+        </div>
       </div>
-      <label style={S.label}>Prénom</label>
-      <input style={S.input} value={prenom} onChange={(e) => setPrenom(e.target.value)} />
-      <label style={S.label}>Description</label>
-      <input style={S.input} value={description} onChange={(e) => setDescription(e.target.value)} />
-      <button style={{ ...S.boutonPrincipal, ...(prenom.trim() ? {} : S.boutonDesactive) }} disabled={!prenom.trim()} onClick={enregistrer}>
-        Enregistrer
+
+      <button onClick={() => allerVers("modifier_profil")} style={{ ...S.boutonSecondaire, marginTop: 10 }}>
+        ✏️ Modifier mon profil
       </button>
-      {enregistre && <p style={{ ...S.aide, color: "#2E7D55", textAlign: "center" }}>✓ Enregistré</p>}
-      <p style={S.aide}>Ces informations vous représentent quand vous créez ou rejoignez une capsule.</p>
+
+      {/* ── Niveau & badges ── */}
+      {(() => {
+        const g = gami || GAMI_VIDE;
+        const niv = NIVEAUX.find(n => n.niveau === g.niveau) || NIVEAUX[0];
+        const suivant = NIVEAUX.find(n => n.niveau === g.niveau + 1) || null;
+        const prog = suivant
+          ? Math.min(100, ((g.points_total - niv.min) / (suivant.min - niv.min)) * 100)
+          : 100;
+        const nb = badgesDebloques(g).length;
+        const total = BADGES_DEF.reduce((s, c) => s + c.paliers.length, 0);
+        return (
+          <div onClick={() => allerVers("badges")}
+            style={{ marginTop: 14, background: "linear-gradient(135deg,#667eea22,#764ba218)",
+              border: "1.5px solid #667eea40", borderRadius: 18, padding: "14px 16px",
+              cursor: "pointer", userSelect: "none" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+              <span style={{ fontSize: 28 }}>{niv.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, color: "#764ba2", fontWeight: 700 }}>
+                  Niveau {niv.niveau} — {niv.nom}
+                </div>
+                <div style={{ fontSize: 11, color: COULEURS.doux, marginTop: 1 }}>
+                  {g.points_total} pts · {nb}/{total} badge{nb > 1 ? "s" : ""}
+                </div>
+              </div>
+              <span style={{ fontSize: 13, color: "#764ba2", fontWeight: 700 }}>Voir →</span>
+            </div>
+            {suivant && (
+              <div style={{ background: "rgba(118,75,162,0.15)", borderRadius: 100, height: 5,
+                overflow: "hidden" }}>
+                <div style={{ background: "linear-gradient(90deg,#667eea,#764ba2)",
+                  height: "100%", borderRadius: 100, width: `${prog}%`,
+                  transition: "width 0.6s ease" }} />
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Section parrainage ── */}
-      <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${COULEURS.bordure}` }}>
-        <p style={{ ...S.label, marginTop: 0 }}>🎁 Parrainer un ami</p>
-        <p style={{ ...S.aide, marginBottom: 16 }}>
-          Invitez un ami. S'il crée une capsule dans les 7 jours, vous recevez tous les deux 1 mois de Blooom Plus offert.
-        </p>
-
-        {/* Statut Blooom Plus si actif */}
-        {plusActif && (
-          <div style={{ background: "linear-gradient(135deg,#FF8A3D18,#FF5C9D18)", border: `1px solid ${COULEURS.corail}40`, borderRadius: 14, padding: "10px 14px", marginBottom: 14, textAlign: "center" }}>
-            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: COULEURS.corail }}>
-              ✨ Blooom Plus actif jusqu'au {new Date(moi.plusExpiresAt).toLocaleDateString("fr-FR")}
-            </p>
+      {moi.abonnement === "papy" ? (
+        <div style={{ marginTop: 16, background: "var(--carte-bg)", borderRadius: 16,
+          padding: "12px 14px", boxShadow: "0 2px 10px rgba(46,34,48,0.06)" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: COULEURS.encre }}>🎁 Parrainer un ami</span>
+            {statsParrainage && (
+              <span style={{ fontSize: 11, color: COULEURS.doux, fontWeight: 600 }}>
+                {statsParrainage.total} parrainé{statsParrainage.total > 1 ? "s" : ""} · {statsParrainage.convertis} mois gagnés
+              </span>
+            )}
           </div>
-        )}
+          <p style={{ fontSize: 11, color: COULEURS.doux, margin: "0 0 6px", lineHeight: 1.4 }}>
+            Invitez un ami — s'il crée une capsule dans les 7 jours, vous recevez tous les deux 1 mois offert.
+          </p>
+          <p style={{ fontSize: 10, color: COULEURS.doux, margin: "0 0 10px", lineHeight: 1.4, opacity: 0.7, fontStyle: "italic" }}>
+            Valable uniquement sur le pack Mamie/Papy.
+          </p>
+          {moi.codeParrain && (
+            <div style={{ background: "var(--input-bg)", borderRadius: 10, padding: "7px 10px",
+              marginBottom: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: COULEURS.encre,
+                letterSpacing: 2, fontFamily: "'Bricolage Grotesque', sans-serif" }}>{moi.codeParrain}</span>
+              <button onClick={copierLienParrainage}
+                style={{ fontSize: 11, fontWeight: 700, color: COULEURS.corail, background: "none",
+                  border: "none", cursor: "pointer", padding: 0, whiteSpace: "nowrap" }}>
+                {copie ? "✓ Copié" : "📋 Copier"}
+              </button>
+            </div>
+          )}
+          <button style={{ ...S.boutonPrincipal, marginTop: 0, fontSize: 13, padding: "10px 0" }}
+            onClick={partagerLienParrainage}>
+            📤 Partager mon lien
+          </button>
+        </div>
+      ) : (
+        <div style={{ marginTop: 16, background: "var(--carte-bg)", borderRadius: 16,
+          padding: "12px 14px", boxShadow: "0 2px 10px rgba(46,34,48,0.06)" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: COULEURS.encre }}>🤝 Faites-vous parrainer</span>
+          <p style={{ fontSize: 11, color: COULEURS.doux, margin: "8px 0 0", lineHeight: 1.5 }}>
+            Un ami abonné au pack Mamie/Papy peut vous inviter. Si vous souscrivez dans les 7 jours, vous recevez tous les deux <strong>1 mois offert</strong>.
+          </p>
+          <p style={{ fontSize: 10, color: COULEURS.doux, margin: "6px 0 0", lineHeight: 1.4, opacity: 0.7, fontStyle: "italic" }}>
+            Demandez à votre ami de partager son lien de parrainage depuis son profil Blooom.
+          </p>
+        </div>
+      )}
 
-        {/* Code parrain en grand */}
-        {moi.codeParrain && (
-          <div style={S.blocCode}>
-            <p style={S.codeLabel}>Votre code parrain</p>
-            <p style={S.codeValeur}>{moi.codeParrain}</p>
-            <p style={{ fontSize: 12, color: COULEURS.doux, wordBreak: "break-all", margin: 0, lineHeight: 1.4 }}>
-              {lienParrainage}
-            </p>
-          </div>
-        )}
-
-        {/* Bouton partager */}
-        <button style={S.boutonPrincipal} onClick={partagerLienParrainage}>
-          📤 Partager mon lien
+      {/* Liens secondaires — code cadeau + confidentialité */}
+      <div style={{ marginTop: 28, paddingTop: 18, borderTop: `1px solid ${COULEURS.bordure}` }}>
+        <button
+          onClick={() => allerVers("activer_code")}
+          style={{
+            background: "none", border: "none", color: COULEURS.doux,
+            fontSize: 14, cursor: "pointer", padding: "8px 0",
+            display: "flex", alignItems: "center", gap: 8,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: 600, width: "100%",
+          }}
+        >
+          <span>🎁</span>
+          <span>J'ai un code cadeau</span>
+          <span style={{ marginLeft: "auto" }}>→</span>
         </button>
-        <button style={{ ...S.boutonSecondaire, marginTop: 10 }} onClick={copierLienParrainage}>
-          {copie ? "✓ Copié !" : "📋 Copier le lien"}
+        {/* Accès aux paramètres (thème, langue, notifications) — retiré de la barre principale */}
+        <button
+          onClick={() => allerVers("parametres")}
+          style={{
+            background: "none", border: "none", color: COULEURS.doux,
+            fontSize: 14, cursor: "pointer", padding: "8px 0",
+            display: "flex", alignItems: "center", gap: 8,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: 600, width: "100%",
+          }}
+        >
+          <span>⚙️</span>
+          <span>Paramètres</span>
+          <span style={{ marginLeft: "auto" }}>→</span>
         </button>
-
-        {/* Stats parrainage */}
-        {statsParrainage && (
-          <div style={{ ...S.statsLigne, marginTop: 16 }}>
-            <div style={S.statBloc}>
-              <div style={S.statChiffre}>{statsParrainage.total}</div>
-              <div style={S.statLabel}>ami(s) parrainé(s)</div>
-            </div>
-            <div style={S.statBloc}>
-              <div style={S.statChiffre}>{statsParrainage.convertis}</div>
-              <div style={S.statLabel}>ont créé une capsule</div>
-            </div>
-            <div style={S.statBloc}>
-              <div style={{ ...S.statChiffre, background: DEGRADE, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                {statsParrainage.convertis}
-              </div>
-              <div style={S.statLabel}>mois de Plus gagnés</div>
-            </div>
-          </div>
+        <button
+          onClick={() => allerVers("confidentialite")}
+          style={{
+            background: "none", border: "none", color: COULEURS.doux,
+            fontSize: 14, cursor: "pointer", padding: "8px 0",
+            display: "flex", alignItems: "center", gap: 8,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            fontWeight: 600, width: "100%",
+          }}
+        >
+          <span>🔐</span>
+          <span>Confidentialité &amp; sécurité</span>
+          <span style={{ marginLeft: "auto" }}>→</span>
+        </button>
+        {moi.isAdmin && (
+          <button
+            onClick={() => allerVers("admin")}
+            style={{
+              background: "none", border: "none", color: COULEURS.corail,
+              fontSize: 14, cursor: "pointer", padding: "8px 0",
+              display: "flex", alignItems: "center", gap: 8,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontWeight: 700, width: "100%",
+            }}
+          >
+            <span>🛠️</span>
+            <span>Back office</span>
+            <span style={{ marginLeft: "auto" }}>→</span>
+          </button>
         )}
       </div>
     </div>
@@ -1321,14 +3020,40 @@ function EcranCreation({ allerVers, creerCapsule }) {
     <div style={S.ecran}>
       <EnTeteRetour titre="Nouvelle capsule" onRetour={() => allerVers("capsules")} />
 
+      {/* Inclus dans la capsule gratuite */}
+      <div style={{ background: "#F0FDF4", border: "1.5px solid #BBF7D0", borderRadius: 16,
+        padding: "12px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#15803D", marginBottom: 8, letterSpacing: 0.3 }}>
+          ✅ Inclus dans votre capsule gratuite
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 12px" }}>
+          {["📷 30 photos", "👥 Participants illimités"].map((item, i) => (
+            <div key={i} style={{ fontSize: 12, color: "#166534", fontWeight: 600,
+              fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {item}
+            </div>
+          ))}
+        </div>
+      </div>
+
       <label style={S.label}>Nom de la capsule</label>
       <input style={S.input} placeholder="Ex. Mariage de Léa & Tom" value={nom} onChange={(e) => setNom(e.target.value)} />
 
       <label style={S.label}>Quel type ?</label>
       <div style={S.grilleTypes}>
         {TYPES_CAPSULES.map((t) => (
-          <button key={t.id} style={{ ...S.tuileType, ...(type === t.id ? { borderColor: t.teinte, borderWidth: 2, background: t.teinte + "18" } : {}) }}
-            onClick={() => choisirType(t)}>
+          <button
+            key={t.id}
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => choisirType(t)}
+            style={{
+              ...S.tuileType,
+              border: type === t.id ? `2px solid ${t.teinte}` : "2px solid transparent",
+              background: type === t.id ? t.teinte + "18" : "#fff",
+              transform: type === t.id ? "scale(1.04)" : "scale(1)",
+              boxShadow: type === t.id ? `0 4px 14px ${t.teinte}44` : "0 3px 10px rgba(46,34,48,0.06)",
+              transition: "transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease",
+            }}>
             <div style={{ ...S.tuileIcone, background: t.teinte + "22" }}>{t.icone}</div>
             <div style={S.tuileTypeNom}>{t.nom}</div>
           </button>
@@ -1355,8 +3080,7 @@ function EcranCreation({ allerVers, creerCapsule }) {
         onClick={async () => {
           setEnCours(true);
           try {
-            const id = await creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture });
-            if (id) allerVers("detail", id);
+            await creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture });
           } catch (e) {
             alert("Erreur : " + e.message);
           } finally {
@@ -1462,7 +3186,7 @@ function EcranInviter({ capsule, allerVers }) {
   async function partager() {
     try {
       if (navigator.share) {
-        await navigator.share({ title: `Rejoins ma capsule "${capsule.nom}"`, text: `Rejoins ma capsule "${capsule.nom}" !\n\nCode : ${capsule.code}\nLien : ${lien}`, url: lien });
+        await navigator.share({ title: `Rejoins ma capsule Blooom "${capsule.nom}"`, text: `Rejoins ma capsule Blooom "${capsule.nom}" !\n\nCode : ${capsule.code}\nLien : ${lien}` });
       } else {
         copier(lien, "lien"); // repli : copie si le partage natif n'existe pas
       }
@@ -1813,9 +3537,203 @@ function AnimPari({ contrib, capsule, moisParticipant, voterPari }) {
 // ============================================================================
 //  ÉCRAN DÉTAIL : couverture, compte à rebours, date, PARTICIPANTS + invitation.
 // ============================================================================
-function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, modifierCouverture, editerParticipant, voterPari }) {
+// Poids estimé en Mo par type de contribution (les médias sont des URLs, on ne peut pas peser exactement)
+const POIDS_MO = {
+  photo: 3, video: 30, vocal: 1, dessin: 0.5, document: 2,
+  message: 0.01, secret: 0.01, pari: 0.01, chanson: 0.01, meteo: 0.01, une_du_jour: 0.01,
+};
+
+// Carte "Code Papy" — affiché dans EcranDetail pour les créateurs de capsules Papy.
+function CodePapyCard({ code, allerVers, capsuleId }) {
+  const [copie, setCopie] = useState(false);
+  async function copier() {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopie(true);
+      setTimeout(() => setCopie(false), 2000);
+    } catch {}
+  }
+  return (
+    <div style={{ background: "#FFFBEB", borderRadius: 18, padding: "16px 18px",
+      marginTop: 14, border: "1.5px solid #FDE68A" }}>
+      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 700,
+        fontSize: 13, color: "#92400E", marginBottom: 6 }}>
+        👴👵 Code pour Mamie/Papy
+      </div>
+      <div style={{ fontSize: 12, color: "#B45309", lineHeight: 1.5, marginBottom: 12,
+        fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        Donnez ce code à vos proches. En l'utilisant, ils choisissent leur rôle : contributeur ou Mamie/Papy.
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+        <div style={{ flex: 1, background: "#fff", borderRadius: 12, padding: "10px 14px",
+          textAlign: "center", fontFamily: "'Bricolage Grotesque', sans-serif",
+          fontWeight: 900, fontSize: 24, letterSpacing: 6, color: "#92400E",
+          border: "2px dashed #FDE68A" }}>
+          {code}
+        </div>
+        <button onClick={copier}
+          style={{ background: "#FDE68A", border: "none", borderRadius: 12,
+            padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#92400E",
+            cursor: "pointer", whiteSpace: "nowrap", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          {copie ? "✓ Copié" : "Copier"}
+        </button>
+      </div>
+      {allerVers && capsuleId && (
+        <button onClick={() => allerVers("choix_role_papy", capsuleId)}
+          style={{ width: "100%", padding: "10px 0", borderRadius: 12, border: "none",
+            background: "linear-gradient(135deg,#C25A20,#FF8C5A)", color: "#fff",
+            fontWeight: 700, fontSize: 13, cursor: "pointer",
+            fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          👁 Voir la capsule avec ce code
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Indicateur de quotas par type (photos, vidéos, vocaux) — basé sur la formule de la capsule.
+function IndicateurStockage({ capsule, compact = false }) {
+  const formule = capsule.formule || "gratuit";
+  const q = QUOTAS[formule] || QUOTAS.gratuit;
+
+  const items = [
+    { label: "📸 Photos", quota: capsule.quota_photos ?? q.photos, compte: capsule.compte_photos ?? 0 },
+    { label: "🎬 Vidéos", quota: capsule.quota_videos ?? q.videos, compte: capsule.compte_videos ?? 0 },
+    { label: "🎤 Vocaux", quota: capsule.quota_vocaux ?? q.vocaux, compte: capsule.compte_vocaux ?? 0 },
+  ].filter(i => i.quota > 0);
+
+  function labelQuota(item) {
+    if (item.quota >= 9999) return "Illimité";
+    return `${item.compte} / ${item.quota}`;
+  }
+
+  if (items.length === 0) return null;
+
+  if (compact) {
+    return (
+      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+        {items.map(item => {
+          const limite = item.quota < 9999;
+          const pct = limite ? Math.min(100, (item.compte / item.quota) * 100) : 0;
+          return (
+            <div key={item.label} style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: pct > 80 ? "#FF8A3D" : COULEURS.doux, textAlign: "center", marginBottom: 2 }}>
+                {item.label.split(" ")[0]} {labelQuota(item)}
+              </div>
+              <div style={{ height: 3, background: `${COULEURS.doux}28`, borderRadius: 999, overflow: "hidden" }}>
+                {limite && <div style={{ height: "100%", borderRadius: 999, width: `${pct}%`,
+                  background: pct > 90 ? "#FF5C5C" : pct > 70 ? "#FF8A3D" : DEGRADE, transition: "width .6s ease" }} />}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: COULEURS.doux, marginBottom: 8 }}>Stockage de la capsule</div>
+      {items.map(item => {
+        const limite = item.quota < 9999;
+        const pct = limite ? Math.min(100, (item.compte / item.quota) * 100) : 0;
+        const couleurVal = pct > 80 ? "#FF8A3D" : COULEURS.doux;
+        return (
+          <div key={item.label} style={{ marginBottom: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+              <span style={{ fontSize: 12, color: COULEURS.encre }}>{item.label}</span>
+              <span style={{ fontSize: 11, color: couleurVal }}>{labelQuota(item)}</span>
+            </div>
+            <div style={{ height: 4, background: `${COULEURS.doux}28`, borderRadius: 999, overflow: "hidden" }}>
+              {limite && <div style={{ height: "100%", borderRadius: 999, width: `${pct}%`,
+                background: pct > 90 ? "#FF5C5C" : pct > 70 ? "#FF8A3D" : DEGRADE, transition: "width .6s ease" }} />}
+            </div>
+          </div>
+        );
+      })}
+      {q.mensuel && (
+        <p style={{ fontSize: 10, color: COULEURS.doux, margin: 0, marginTop: 4 }}>
+          Se réinitialise le 1er du mois.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function VoirEnsembleButton({ capsule, moi, insererNotification }) {
+  const [envoye, setEnvoye] = React.useState(false);
+  const [info, setInfo] = React.useState(false);
+
+  async function inviterEnsemble() {
+    if (!insererNotification) return;
+    const autresParticipants = capsule.participants.filter(p => p.id !== moi?.participantId);
+    const nomExpediteur = moi?.prenom || "Quelqu'un";
+    await Promise.all(autresParticipants.map(p =>
+      insererNotification(
+        p.id,
+        capsule.id,
+        `${nomExpediteur} vous invite à ouvrir « ${capsule.nom} » ensemble maintenant ! 🎉`,
+        "detail"
+      )
+    ));
+    setEnvoye(true);
+    setTimeout(() => setEnvoye(false), 4000);
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button
+        onClick={inviterEnsemble}
+        disabled={envoye}
+        style={{
+          width: "100%", padding: "11px 16px", borderRadius: 14, border: "1.5px solid #A78BFA",
+          background: envoye ? "#F3F0FF" : "transparent", color: envoye ? "#7C3AED" : "#7C3AED",
+          fontSize: 14, fontWeight: 700, cursor: envoye ? "default" : "pointer",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+          transition: "all 0.2s",
+        }}
+      >
+        {envoye ? "✓ Invitations envoyées !" : "👀 Voir tous ensemble ?"}
+      </button>
+      <button
+        onClick={() => setInfo(v => !v)}
+        style={{ background: "none", border: "none", color: "#A78BFA", fontSize: 11,
+          fontWeight: 600, margin: "4px auto 0", display: "block", cursor: "pointer", padding: 0 }}
+      >
+        {info ? "Masquer" : "C'est quoi ?"}
+      </button>
+      {info && (
+        <p style={{ fontSize: 11, color: "#6B7280", textAlign: "center", margin: "6px 4px 0",
+          lineHeight: 1.5, background: "#F9F5FF", borderRadius: 10, padding: "8px 12px" }}>
+          Envoie une notification à tous les membres pour qu'ils ouvrent la capsule en même temps que vous — où qu'ils soient. ✨
+        </p>
+      )}
+    </div>
+  );
+}
+
+function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, modifierNom, modifierCouverture, editerParticipant, voterPari, onPaywall, insererNotification, supprimerCapsule, marierParticipant, capsulesLiees }) {
   const [editionDate, setEditionDate] = useState(false);
   const [nouvelleDate, setNouvelleDate] = useState(capsule?.dateOuverture || "");
+  const [editionNom, setEditionNom] = useState(false);
+  const [nouveauNom, setNouveauNom] = useState(capsule?.nom || "");
+  const [confirmSuppression, setConfirmSuppression] = useState(false);
+  const [copieInvit, setCopieInvit] = useState(false);
+
+  async function partagerInvitation() {
+    const lien = lienPartage(capsule.code);
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `Rejoins ma capsule Blooom "${capsule.nom}"`,
+          text:  `Rejoins notre capsule mariage "${capsule.nom}" ! 💍\n\nCode : ${capsule.code}\nLien : ${lien}`,
+        });
+      } else {
+        await navigator.clipboard.writeText(`Code : ${capsule.code}\nLien : ${lien}`);
+        setCopieInvit(true); setTimeout(() => setCopieInvit(false), 2000);
+      }
+    } catch (e) { /* annulé */ }
+  }
 
   const MAX_AFFICHES = 20;
   const affichesParticipants = React.useMemo(() => {
@@ -1825,24 +3743,137 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
     return [...liste].sort(() => Math.random() - 0.5).slice(0, MAX_AFFICHES);
   }, [capsule?.id, capsule?.participants?.length]);
 
-  if (!capsule) return null;
+  const _estPapy = capsule?.formule === "papy";
+  const MOIS_FR = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  const papyMoisDisponibles = React.useMemo(() => {
+    if (!_estPapy) return [];
+    const opts = []; const base = new Date();
+    base.setDate(1); base.setHours(0,0,0,0); base.setMonth(base.getMonth() + 2);
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(base); d.setMonth(base.getMonth() + i);
+      opts.push({ label: `${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`, iso: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-01` });
+    }
+    return opts;
+  }, [_estPapy]);
+  const [papyMoisIdx, setPapyMoisIdx] = useState(() => {
+    if (!_estPapy || !capsule?.dateOuverture) return 0;
+    const isoTarget = capsule.dateOuverture.substring(0, 7) + "-01";
+    const idx = papyMoisDisponibles.findIndex(m => m.iso === isoTarget);
+    return idx >= 0 ? idx : 0;
+  });
+
+  if (!capsule) return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="Capsule" onRetour={() => allerVers("capsules")} />
+      <p style={{ textAlign: "center", color: COULEURS.doux, marginTop: 60, fontSize: 14 }}>Chargement…</p>
+    </div>
+  );
   const total = capsule.participants.length;
-  const tailleAvatar = total <= 3 ? 64 : total <= 8 ? 52 : total <= 14 ? 44 : 38;
+  const tailleAvatar = total <= 3 ? 44 : total <= 8 ? 36 : total <= 14 ? 30 : 26;
   const tailleNom = Math.max(10, tailleAvatar * 0.22);
   const jours = joursRestants(capsule.dateOuverture);
   const ouvrable = estOuvrable(capsule);
   const typeInfo = TYPES_CAPSULES.find((t) => t.id === capsule.type);
+  const estMariage = capsule.formule === "mariage";
+  const estPapy    = capsule.formule === "papy";
+  const monParticipant = capsule.participants.find(p => p.userId === moi?.id);
+  const estCreateur = moi?.id === capsule.createurId;
+  const marieesList = estMariage ? capsule.participants.filter(p => p.marie) : [];
+  const estMarie = estMariage ? (monParticipant?.marie || false) : true;
+  const peutOuvrirCapsule = !estMariage || estMarie;
+
+  // Papy — règles de modification et infos d'affichage
+  const estPremierePapyCapsule = estPapy && (!capsulesLiees || capsulesLiees.length === 0);
+  const peutModifierDate = !estPapy || estPremierePapyCapsule;
+  const papyMoisEnCours = estPapy && capsule.dateOuverture
+    ? (() => { const d = new Date(capsule.dateOuverture); d.setMonth(d.getMonth()-1); return `${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`; })()
+    : null;
+  const papyProchaineOuverture = estPapy && capsule.dateOuverture
+    ? (() => { const d = new Date(capsule.dateOuverture); return `1er ${MOIS_FR[d.getMonth()]} ${d.getFullYear()}`; })()
+    : null;
 
   return (
-    <div style={S.ecran}>
+    <div style={{ ...S.ecran, ...(estMariage ? { background:"linear-gradient(180deg,#FFF7ED 0%,#FFFBF5 55%,#FFF0E6 100%)" } : {}) }}>
+      {estMariage && <style>{`
+        @keyframes mpSc{0%,100%{opacity:.25;transform:scale(.8) rotate(-8deg)}50%{opacity:1;transform:scale(1.25) rotate(8deg)}}
+        @keyframes mpSh{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+        @keyframes mpFl{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-8px) rotate(6deg)}}
+        @keyframes mpPulse{0%,100%{box-shadow:0 4px 18px rgba(201,168,76,.3)}50%{box-shadow:0 4px 32px rgba(201,168,76,.7)}}
+        .mp1{animation:mpSc 2.0s ease-in-out infinite}
+        .mp2{animation:mpSc 2.0s ease-in-out .35s infinite}
+        .mp3{animation:mpSc 2.0s ease-in-out .7s infinite}
+        .mp4{animation:mpSc 2.0s ease-in-out 1.05s infinite}
+        .mp5{animation:mpSc 2.0s ease-in-out 1.4s infinite}
+        .mp6{animation:mpSc 2.0s ease-in-out 1.75s infinite}
+        .mp7{animation:mpSc 2.0s ease-in-out .55s infinite}
+        .mp8{animation:mpSc 2.0s ease-in-out .9s infinite}
+        .mpFlotte{animation:mpFl 3.2s ease-in-out infinite}
+        .mpShimmer{background:linear-gradient(270deg,#3D0C11,#6B1428,#BE185D,#C9A84C,#F5D78E,#C9A84C,#BE185D,#6B1428,#3D0C11);background-size:500% 500%;animation:mpSh 5s ease infinite}
+        .mpPulse{animation:mpPulse 2.5s ease-in-out infinite}
+        .mpBtn{background:linear-gradient(135deg,#3D0C11,#831843,#BE185D,#C9A84C)!important;color:#fff!important;border:none!important;box-shadow:0 4px 18px rgba(131,24,67,.4)!important}
+      `}</style>}
       <EnTeteRetour titre={capsule.nom} onRetour={() => allerVers("capsules")} />
 
-      <label style={{ display: "block", cursor: "pointer", marginBottom: 10 }}>
+      {estMariage && (
+        <div className="mpShimmer" style={{borderRadius:22,padding:"26px 18px 20px",marginBottom:14,position:"relative",overflow:"hidden",flexShrink:0}}>
+          <span className="mp1" style={{position:"absolute",top:7,   left:14,  fontSize:21,pointerEvents:"none",zIndex:1}}>✨</span>
+          <span className="mp2" style={{position:"absolute",top:11,  right:22, fontSize:17,pointerEvents:"none",zIndex:1}}>💫</span>
+          <span className="mp3" style={{position:"absolute",top:24,  left:"43%",fontSize:13,pointerEvents:"none",zIndex:1}}>⭐</span>
+          <span className="mp4" style={{position:"absolute",bottom:9, left:30,  fontSize:18,pointerEvents:"none",zIndex:1}}>✨</span>
+          <span className="mp5" style={{position:"absolute",bottom:11,right:18, fontSize:15,pointerEvents:"none",zIndex:1}}>💫</span>
+          <span className="mp6" style={{position:"absolute",top:8,   left:"68%",fontSize:12,pointerEvents:"none",zIndex:1}}>✨</span>
+          <span className="mp7" style={{position:"absolute",bottom:18,left:"54%",fontSize:11,pointerEvents:"none",zIndex:1}}>⭐</span>
+          <span className="mp8" style={{position:"absolute",top:32,  right:42, fontSize:10,pointerEvents:"none",zIndex:1}}>💫</span>
+          <div className="mpFlotte" style={{textAlign:"center",fontSize:46,lineHeight:1,marginBottom:6,position:"relative",zIndex:2}}>💍</div>
+          <div style={{textAlign:"center",color:"#fff",fontFamily:"'Bricolage Grotesque',sans-serif",fontWeight:800,fontSize:18,textShadow:"0 2px 10px rgba(0,0,0,.3)",position:"relative",zIndex:2}}>
+            {editionNom ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+                <input
+                  value={nouveauNom}
+                  onChange={e => setNouveauNom(e.target.value)}
+                  style={{ flex: 1, maxWidth: 200, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,215,100,0.7)", borderRadius: 10, padding: "6px 10px", fontSize: 15, color: "#fff", fontWeight: 700, outline: "none" }}
+                  autoFocus
+                />
+                <button style={{ background: "rgba(201,168,76,0.8)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", fontWeight: 700, cursor: "pointer" }}
+                  onClick={() => { modifierNom(capsule.id, nouveauNom); setEditionNom(false); }}>✓</button>
+                <button style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", cursor: "pointer" }}
+                  onClick={() => { setNouveauNom(capsule.nom); setEditionNom(false); }}>✕</button>
+              </div>
+            ) : (
+              <>
+                {capsule.nom}
+                {moi?.id === capsule.createurId && modifierNom && (
+                  <button style={{ display: "block", margin: "4px auto 0", background: "none", border: "none", color: "rgba(255,215,100,0.75)", fontSize: 11, cursor: "pointer", fontWeight: 600, padding: 0 }}
+                    onClick={() => setEditionNom(true)}>✏️ Renommer</button>
+                )}
+              </>
+            )}
+          </div>
+          <div style={{textAlign:"center",color:"rgba(255,215,100,.95)",fontSize:12,marginTop:4,fontFamily:"'Plus Jakarta Sans',sans-serif",position:"relative",zIndex:2}}>
+            {capsule.participants.length} invité{capsule.participants.length>1?"s":""} · {capsule.contributions.length} souvenir{capsule.contributions.length>1?"s":""}
+          </div>
+        </div>
+      )}
+
+      <label style={{ display: "block", cursor: "pointer", marginBottom: 10,
+        ...(estMariage ? {border:"2px solid #C9A84C",borderRadius:20,overflow:"hidden"} : {}) }}
+        className={estMariage ? "mpPulse" : ""}>
         <div style={{ ...S.detailCouverture, marginBottom: 0,
-          background: capsule.couverture ? `url(${capsule.couverture}) center/cover` : (typeInfo?.teinte || "#FF6B5E") }}>
+          background: estMariage && !capsule.couverture
+            ? "linear-gradient(135deg,#3D0C11 0%,#831843 45%,#BE185D 75%,#C9A84C 100%)"
+            : capsule.couverture ? `url(${capsule.couverture}) center/cover` : (typeInfo?.teinte || "#FF6B5E"),
+          position:"relative", overflow:"hidden" }}>
+          {estMariage && !capsule.couverture && (
+            <>
+              <span className="mp1" style={{position:"absolute",top:8, left:12, fontSize:16,pointerEvents:"none"}}>✨</span>
+              <span className="mp3" style={{position:"absolute",top:10,right:14,fontSize:13,pointerEvents:"none"}}>💫</span>
+              <span className="mp5" style={{position:"absolute",bottom:8,left:22,fontSize:12,pointerEvents:"none"}}>⭐</span>
+              <span className="mp7" style={{position:"absolute",bottom:10,right:18,fontSize:14,pointerEvents:"none"}}>✨</span>
+            </>
+          )}
           {!capsule.couverture && (
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 56 }}>{typeInfo?.icone || "✨"}</div>
+              <div style={{ fontSize: 56 }}>{estMariage ? "💍" : typeInfo?.icone || "✨"}</div>
               <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 600, marginTop: 8, background: "rgba(0,0,0,0.25)", padding: "6px 14px", borderRadius: 999 }}>
                 📷 Ajouter une photo de couverture
               </div>
@@ -1856,13 +3887,70 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
           onChange={(e) => lireFichierEnBase64(e, (b64) => modifierCouverture(capsule.id, b64))} />
       </label>
 
-      <div style={S.blocSceau}>
+      {/* ── Bandeau mensuel Papy/Mamie ── */}
+      {estPapy && (
+        <div style={{ background:"linear-gradient(135deg,#FFF0E6,#FFE4CC)",
+          border:"2px solid #FF8C5A", borderRadius:18, padding:"13px 16px", marginBottom:12 }}>
+          <div style={{ fontSize:11, fontWeight:800, color:"#C25A20",
+            letterSpacing:".06em", textTransform:"uppercase", marginBottom:8 }}>
+            📅 Capsule mensuelle
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+            {papyProchaineOuverture && (
+              <div style={{ fontSize:13, color:"#5C3A1E" }}>
+                <strong>Prochaine ouverture :</strong> {papyProchaineOuverture}
+              </div>
+            )}
+            {!capsule.dateOuverture && (
+              <div style={{ fontSize:13, color:"#A07850", fontStyle:"italic" }}>
+                Aucune date d'ouverture définie
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div style={{ ...S.blocSceau, ...(estMariage ? {background:"linear-gradient(135deg,rgba(201,168,76,.18),rgba(190,24,93,.09))",border:"1.5px solid rgba(201,168,76,.5)",boxShadow:"0 4px 16px rgba(201,168,76,.15)"} : {}) }}>
         {capsule.ouverte ? <div style={S.sceauEtat}>🎉 Capsule ouverte</div>
           : ouvrable ? <div style={S.sceauEtat}>✨ Prête à être ouverte</div>
-          : (<><div style={S.sceauJours}>{jours}</div><div style={S.sceauEtat}>jour{jours > 1 ? "s" : ""} avant l'ouverture</div></>)}
+          : (<><div style={{ ...S.sceauJours, ...(estMariage ? {color:"#C9A84C"} : {}) }}>{jours ?? "—"}</div><div style={S.sceauEtat}>jour{jours > 1 ? "s" : ""} avant l'ouverture</div></>)}
         {!capsule.ouverte && (
           <div style={{ marginTop: 10 }}>
-            {editionDate ? (
+            {/* Édition de la date */}
+            {editionDate && estPremierePapyCapsule ? (
+              /* Papy : sélecteur de mois (1er du mois uniquement) */
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+                  <button onClick={() => setPapyMoisIdx(i => Math.max(0, i-1))}
+                    disabled={papyMoisIdx === 0}
+                    style={{ flexShrink:0, width:36, height:36, borderRadius:10,
+                      border:"1.5px solid rgba(255,140,90,.4)", background:"#fff",
+                      fontSize:18, color: papyMoisIdx === 0 ? "rgba(255,140,90,.3)" : "#C25A20",
+                      cursor: papyMoisIdx === 0 ? "default" : "pointer", padding:0 }}>‹</button>
+                  <div style={{ flex:1, textAlign:"center", padding:"8px 10px", borderRadius:14,
+                    border:"2px solid #FF5A20", background:"linear-gradient(135deg,#FFF5EC,#FFF0E6)" }}>
+                    <div style={{ fontWeight:800, fontSize:15, color:"#C25A20" }}>
+                      {papyMoisDisponibles[papyMoisIdx]?.label}
+                    </div>
+                    <div style={{ fontSize:11, color:"#A07850", marginTop:1 }}>Ouverture le 1er</div>
+                  </div>
+                  <button onClick={() => setPapyMoisIdx(i => Math.min(papyMoisDisponibles.length-1, i+1))}
+                    disabled={papyMoisIdx === papyMoisDisponibles.length-1}
+                    style={{ flexShrink:0, width:36, height:36, borderRadius:10,
+                      border:"1.5px solid rgba(255,140,90,.4)", background:"#fff",
+                      fontSize:18, color: papyMoisIdx === papyMoisDisponibles.length-1 ? "rgba(255,140,90,.3)" : "#C25A20",
+                      cursor: papyMoisIdx === papyMoisDisponibles.length-1 ? "default" : "pointer", padding:0 }}>›</button>
+                </div>
+                <div style={{ display:"flex", gap:8 }}>
+                  <button style={{ ...S.boutonMini, flex:1, marginTop:0 }}
+                    onClick={() => { modifierDate(capsule.id, papyMoisDisponibles[papyMoisIdx].iso); setEditionDate(false); }}>
+                    Valider
+                  </button>
+                  <button style={{ ...S.boutonMiniGris, flex:1 }} onClick={() => setEditionDate(false)}>Annuler</button>
+                </div>
+              </div>
+            ) : editionDate && !estPapy ? (
+              /* Non-papy : sélecteur de date classique */
               <div style={{ textAlign: "left" }}>
                 <SelecteurDate valeur={nouvelleDate || ""} onChange={setNouvelleDate} />
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -1871,8 +3959,9 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
                 </div>
               </div>
             ) : (
-              <div style={S.sceauDate}>le {formaterDate(capsule.dateOuverture)}{" "}
-                {moi?.id === capsule.createurId && (
+              <div style={S.sceauDate}>
+                {capsule.dateOuverture ? `le ${formaterDate(capsule.dateOuverture)}` : "Ouverture libre"}{" "}
+                {moi?.id === capsule.createurId && peutModifierDate && (
                   <button style={S.lienCrayon} onClick={() => setEditionDate(true)}>✏️ Modifier</button>
                 )}
               </div>
@@ -1882,35 +3971,58 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
       </div>
 
       {!capsule.ouverte && (
-        <button style={{ ...S.boutonPrincipal, marginTop: 0, marginBottom: 10 }} onClick={() => allerVers("contribution", capsule.id)}>+ Déposer un souvenir</button>
+        <button
+          style={{ ...S.boutonPrincipal, marginTop: 0, marginBottom: 10,
+            ...(estMariage ? {background:"linear-gradient(135deg,#3D0C11,#831843,#BE185D,#C9A84C)",boxShadow:"0 4px 20px rgba(131,24,67,.4)"} : {}) }}
+          onClick={() => allerVers("contribution", capsule.id)}>
+          {estMariage ? "💍 Déposer un souvenir" : "+ Déposer un souvenir"}
+        </button>
       )}
 
-      <div style={S.statsLigne}>
-        <div style={S.statBloc}><div style={S.statChiffre}>{capsule.contributions.length}</div><div style={S.statLabel}>souvenirs</div></div>
-        <div style={S.statBloc}><div style={S.statChiffre}>{capsule.participants.length}</div><div style={S.statLabel}>participants</div></div>
+      <div style={{ ...S.statsLigne, ...(estMariage ? {background:"linear-gradient(135deg,rgba(201,168,76,.14),rgba(190,24,93,.07))",border:"1px solid rgba(201,168,76,.35)",borderRadius:16,boxShadow:"0 2px 10px rgba(201,168,76,.12)"} : {}) }}>
+        <div style={S.statBloc}>
+          <div style={{ ...S.statChiffre, ...(estMariage ? {color:"#831843"} : {}) }}>{capsule.contributions.length}</div>
+          <div style={S.statLabel}>souvenirs</div>
+        </div>
+        <div style={S.statBloc}>
+          <div style={{ ...S.statChiffre, ...(estMariage ? {color:"#831843"} : {}) }}>{capsule.participants.length}</div>
+          <div style={S.statLabel}>participants</div>
+        </div>
       </div>
 
-      {/* Preuve sociale quand la capsule est vide : donne envie de déposer le premier souvenir
-          en montrant ce que d'autres ont fait dans des situations similaires */}
-      {capsule.contributions.length === 0 && !capsule.ouverte && <CarteStatStatique />}
+      {/* Indicateur de stockage — limite du créateur, identique pour tous les membres */}
+      <IndicateurStockage capsule={capsule} />
+
+      {!capsule.ouverte && (capsule.formule === "gratuit" || !capsule.formule) && (
+        <button onClick={() => allerVers("upgrade_media", capsule.id)}
+          style={{ width: "100%", padding: "10px 0", borderRadius: 12, border: "none",
+            background: COULEURS.corail + "15", color: COULEURS.corail,
+            fontWeight: 700, fontSize: 13, cursor: "pointer", marginTop: 6,
+            fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          Ajouter des souvenirs →
+        </button>
+      )}
 
       {/* Grille des participants */}
       <div style={{ marginTop: 10 }}>
-        <label style={S.label}>
-          {total} participant{total > 1 ? "s" : ""}
+        <label style={{ ...S.label, ...(estMariage ? {color:"#831843",fontWeight:700} : {}) }}>
+          {estMariage ? "💍 " : ""}{total} participant{total > 1 ? "s" : ""}
           {total > MAX_AFFICHES && <span style={{ fontWeight: 400, color: COULEURS.doux }}> · aperçu aléatoire</span>}
         </label>
-        <div style={{ background: "#fff", borderRadius: 22, padding: "12px 10px", boxShadow: "0 4px 14px rgba(46,34,48,0.07)", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+        <div style={{ background: estMariage ? "linear-gradient(135deg,rgba(255,247,237,.95),rgba(255,243,227,.9))" : "#fff", borderRadius: 22, padding: "8px 6px", boxShadow: estMariage ? "0 4px 16px rgba(201,168,76,.18)" : "0 4px 14px rgba(46,34,48,0.07)", display: "flex", flexWrap: "wrap", gap: 4, justifyContent: "center", border: estMariage ? "1.5px solid rgba(201,168,76,.4)" : "none" }}>
           {affichesParticipants.map((p) => {
             const estMoi = p.userId === moi?.id;
             return (
               <div key={p.id}
                 onClick={estMoi ? () => editerParticipant(p.id, "detail") : undefined}
-                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, padding: "4px 2px", borderRadius: 12, cursor: estMoi ? "pointer" : "default" }}>
+                style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "2px 2px", borderRadius: 8, cursor: estMoi ? "pointer" : "default" }}>
                 <div style={{ position: "relative" }}>
                   <Avatar membre={p} taille={tailleAvatar} />
                   {estMoi && (
-                    <div style={{ position: "absolute", bottom: 0, right: 0, width: 14, height: 14, borderRadius: "50%", background: DEGRADE, border: "2px solid #fff" }} />
+                    <div style={{ position: "absolute", bottom: 0, right: 0, width: 8, height: 8, borderRadius: "50%", background: DEGRADE, border: "1.5px solid #fff" }} />
+                  )}
+                  {p.marie && (
+                    <div style={{ position: "absolute", top: -5, right: -5, fontSize: 12, lineHeight: 1 }}>💍</div>
                   )}
                 </div>
                 <span style={{ fontSize: tailleNom, fontWeight: 600, color: COULEURS.encre, maxWidth: tailleAvatar + 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -1930,20 +4042,258 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
         </div>
       </div>
 
+      {/* Désignation des mariés — visible uniquement pour le créateur d'une capsule mariage */}
+      {estMariage && estCreateur && marierParticipant && (
+        <div style={{ marginTop: 12, background: "linear-gradient(135deg,rgba(201,168,76,.10),rgba(131,24,67,.07))", border: "1.5px solid rgba(201,168,76,.5)", borderRadius: 18, padding: "14px 14px 10px" }}>
+          <label style={{ fontSize: 12, fontWeight: 800, color: "#831843", marginBottom: 10, display: "block", letterSpacing: "0.05em", textTransform: "uppercase" }}>
+            💍 Désigner les mariés (2 max)
+          </label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            {capsule.participants.map(p => {
+              const selected = p.marie;
+              const nbMaries = marieesList.length;
+              const disabled = !selected && nbMaries >= 2;
+              return (
+                <button key={p.id}
+                  onClick={() => !disabled && marierParticipant(capsule.id, p.id, !selected)}
+                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 20,
+                    border: `1.5px solid ${selected ? "#C9A84C" : "rgba(201,168,76,.3)"}`,
+                    background: selected ? "linear-gradient(135deg,rgba(201,168,76,.25),rgba(190,24,93,.15))" : "rgba(255,255,255,.7)",
+                    color: selected ? "#831843" : COULEURS.doux, fontWeight: selected ? 800 : 500, fontSize: 13,
+                    cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.38 : 1,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "all 0.2s" }}>
+                  {selected ? "💍 " : "○ "}{p.prenom}
+                </button>
+              );
+            })}
+          </div>
+          {marieesList.length === 2 && (
+            <p style={{ fontSize: 11, color: "rgba(131,24,67,.75)", margin: "10px 0 0", fontStyle: "italic", lineHeight: 1.5 }}>
+              Seuls {marieesList.map(p => p.prenom).join(" & ")} pourront voir et ouvrir cette capsule.
+            </p>
+          )}
+          {marieesList.length === 0 && (
+            <p style={{ fontSize: 11, color: "rgba(131,24,67,.55)", margin: "10px 0 0", fontStyle: "italic" }}>
+              Aucun marié désigné — tout le monde peut accéder au contenu pour l'instant.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Paris en attente de vote — visibles avant l'ouverture */}
       <ParisPendants capsule={capsule} moi={moi} voterPari={voterPari} />
 
       {!capsule.ouverte && (
         <>
-          <button style={S.boutonInviter} onClick={() => allerVers("inviter", capsule.id)}>🔗 Inviter quelqu'un</button>
+          {estMariage && (
+            <div style={{textAlign:"center",margin:"14px 0 6px",fontSize:13,color:"rgba(201,168,76,.8)",letterSpacing:4,fontFamily:"'Plus Jakarta Sans',sans-serif"}}>
+              <span className="mp1">✨</span> <span className="mp3">💫</span> <span className="mp5">✨</span> <span className="mp7">⭐</span> <span className="mp2">💫</span> <span className="mp4">✨</span> <span className="mp6">💫</span>
+            </div>
+          )}
+          {estMariage ? (
+            <>
+              <button
+                style={{ width:"100%", padding:"14px 0", borderRadius:16,
+                  background:"linear-gradient(135deg,#3D0C11,#831843,#BE185D,#C9A84C)",
+                  color:"#fff", border:"none", fontWeight:700, fontSize:15, cursor:"pointer",
+                  fontFamily:"'Bricolage Grotesque',sans-serif",
+                  boxShadow:"0 4px 20px rgba(131,24,67,.4)",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
+                onClick={partagerInvitation}>
+                <span>📨</span><span>{copieInvit ? "✓ Lien copié !" : "Partager l'invitation"}</span>
+              </button>
+              <button
+                style={{ width:"100%", padding:"13px 0", borderRadius:16, marginTop:8,
+                  border:"2px solid #C9A84C", background:"linear-gradient(135deg,rgba(201,168,76,.08),rgba(190,24,93,.06))",
+                  color:"#831843", fontWeight:700, fontSize:14, cursor:"pointer",
+                  fontFamily:"'Bricolage Grotesque',sans-serif",
+                  display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}
+                onClick={() => allerVers("qr_mariage", capsule.id)}>
+                <span>🖨️</span><span>QR code invités</span>
+              </button>
+            </>
+          ) : (
+            <button style={S.boutonInviter} onClick={() => {
+              const maxP = capsule.quota_participants ?? 10;
+              if (capsule.participants.length >= maxP) {
+                onPaywall && onPaywall("quota_atteint");
+              } else {
+                allerVers("inviter", capsule.id);
+              }
+            }}>🔗 Inviter quelqu'un</button>
+          )}
           <p style={S.aide}>Le contenu reste secret jusqu'à l'ouverture.</p>
-          {ouvrable && <button style={S.boutonOuvrir} onClick={() => ouvrirCapsule(capsule.id)}>🔓 Ouvrir la capsule</button>}
+          {ouvrable && peutOuvrirCapsule && <button style={S.boutonOuvrir} onClick={() => ouvrirCapsule(capsule.id)}>🔓 Ouvrir la capsule</button>}
+          {ouvrable && !peutOuvrirCapsule && marieesList.length > 0 && (
+            <div style={{ textAlign:"center",padding:"14px 16px",background:"linear-gradient(135deg,rgba(201,168,76,.10),rgba(131,24,67,.07))",border:"1.5px solid rgba(201,168,76,.4)",borderRadius:16,marginTop:8 }}>
+              <div style={{ fontSize:22,marginBottom:4 }}>💍</div>
+              <p style={{ fontSize:13,fontWeight:600,color:"#831843",margin:0,fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+                Cette capsule s'ouvre uniquement pour {marieesList.map(p => p.prenom).join(" & ")}
+              </p>
+            </div>
+          )}
+          {ouvrable && !peutOuvrirCapsule && marieesList.length === 0 && (
+            <div style={{ textAlign:"center",padding:"12px 16px",background:"rgba(201,168,76,.07)",border:"1px dashed rgba(201,168,76,.4)",borderRadius:14,marginTop:8 }}>
+              <p style={{ fontSize:12,color:"rgba(131,24,67,.6)",margin:0,fontStyle:"italic" }}>Le créateur doit désigner les mariés pour déverrouiller l'ouverture</p>
+            </div>
+          )}
+          {ouvrable && peutOuvrirCapsule && capsule.participants.length > 1 && (
+            <VoirEnsembleButton capsule={capsule} moi={moi} insererNotification={insererNotification} />
+          )}
         </>
       )}
-      {capsule.ouverte && <button style={S.boutonPrincipal} onClick={() => {
+      {capsule.ouverte && peutOuvrirCapsule && <button style={S.boutonPrincipal} onClick={() => {
         try { localStorage.removeItem(`blooom_ouverture_${capsule.id}`); } catch {}
         allerVers("ouverture", capsule.id);
       }}>Revoir les souvenirs</button>}
+      {capsule.ouverte && !peutOuvrirCapsule && (
+        <div style={{ textAlign:"center",padding:"14px 16px",background:"linear-gradient(135deg,rgba(201,168,76,.10),rgba(131,24,67,.07))",border:"1.5px solid rgba(201,168,76,.4)",borderRadius:16,marginTop:4 }}>
+          <div style={{ fontSize:22,marginBottom:4 }}>💍</div>
+          <p style={{ fontSize:13,fontWeight:600,color:"#831843",margin:0,fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+            Le contenu est réservé aux mariés
+          </p>
+        </div>
+      )}
+
+      {/* Mode simplifié + code de partage pour les capsules Mamie/Papy */}
+      {capsule.formule === "papy" && (
+        <>
+          {moi?.id === capsule.createurId && (
+            <CodePapyCard code={capsule.code} allerVers={allerVers} capsuleId={capsule.id} />
+          )}
+        </>
+      )}
+
+      {/* Section impression — Naissance et Mamie/Papy uniquement */}
+      {(capsule.formule === "naissance" || capsule.formule === "papy") && (
+        <SectionImpression capsule={capsule} allerVers={allerVers} />
+      )}
+
+      {/* Mois précédents — membres d'une capsule Papy/Mamie */}
+      {capsule.formule === "papy" && capsulesLiees?.length > 0 && (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#7C3A0A", marginBottom: 10,
+            letterSpacing: "0.04em", textTransform: "uppercase", display:"flex", alignItems:"center", gap:6 }}>
+            <span>📅</span> Mois précédents
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            {[...capsulesLiees]
+              .sort((a, b) => new Date(b.dateCreation || 0) - new Date(a.dateCreation || 0))
+              .map(c => {
+                const nb     = c.contributions?.length || 0;
+                const dateMois = c.dateCreation
+                  ? new Date(c.dateCreation).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+                  : "";
+                const hasPhoto = c.contributions?.find(ct => ct.type === "photo" && ct.media);
+                return (
+                  <button key={c.id} onClick={() => allerVers("detail", c.id)}
+                    style={{ display:"flex", alignItems:"center", gap:12, background:"#fff",
+                      border:"1.5px solid rgba(255,140,90,.25)", borderRadius:18, padding:"12px 14px",
+                      cursor:"pointer", width:"100%", textAlign:"left",
+                      boxShadow:"0 3px 12px rgba(255,90,32,.07)" }}>
+                    {/* Vignette */}
+                    <div style={{ width:48, height:48, borderRadius:12, flexShrink:0, overflow:"hidden",
+                      background: hasPhoto ? "none" : "linear-gradient(135deg,#FFE4CC,#FFB37A)",
+                      display:"flex", alignItems:"center", justifyContent:"center" }}>
+                      {hasPhoto
+                        ? <img src={hasPhoto.media} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+                        : <span style={{ fontSize:22 }}>📅</span>
+                      }
+                    </div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:700, fontSize:14, color:"#3D1A0A",
+                        overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{c.nom}</div>
+                      <div style={{ fontSize:12, color:"#A07850", marginTop:2 }}>
+                        {nb} souvenir{nb !== 1 ? "s" : ""}{dateMois ? ` · ${dateMois}` : ""}
+                      </div>
+                    </div>
+                    <span style={{ fontSize:18, color:"#FF8C5A", flexShrink:0 }}>→</span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+
+      {/* Suppression — visible uniquement pour le créateur */}
+      {moi?.id === capsule.createurId && supprimerCapsule && (
+        <div style={{ marginTop: 32, paddingTop: 16, borderTop: `1px solid ${COULEURS.bordure}` }}>
+          {!confirmSuppression ? (
+            <button
+              onClick={() => setConfirmSuppression(true)}
+              style={{ background: "none", border: "none", color: COULEURS.doux, fontSize: 12,
+                cursor: "pointer", padding: "4px 0", fontFamily: "'Plus Jakarta Sans', sans-serif",
+                opacity: 0.6, textDecoration: "underline" }}>
+              🗑️ Supprimer cette capsule
+            </button>
+          ) : (
+            <div style={{ background: "#FFF1F1", borderRadius: 14, padding: "14px 16px",
+              border: "1px solid #FECACA" }}>
+              <p style={{ margin: "0 0 12px", fontSize: 13, color: "#7F1D1D", fontWeight: 600,
+                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                Supprimer « {capsule.nom} » ? Tous les souvenirs seront perdus définitivement.
+              </p>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => supprimerCapsule(capsule.id)}
+                  style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+                    background: "#DC2626", color: "#fff", fontWeight: 700, fontSize: 13,
+                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Oui, supprimer
+                </button>
+                <button
+                  onClick={() => setConfirmSuppression(false)}
+                  style={{ flex: 1, padding: "10px 0", borderRadius: 10,
+                    border: `1px solid ${COULEURS.bordure}`, background: "none",
+                    color: COULEURS.doux, fontWeight: 600, fontSize: 13,
+                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Section impression — choix du rythme, navigue vers la page de tarifs
+function SectionImpression({ capsule, allerVers }) {
+  const rythmes = [
+    { id: "mensuel",      label: "📅 Tous les mois",   badge: "Populaire" },
+    { id: "trimestriel",  label: "📅 Tous les 3 mois"  },
+    { id: "semestriel",   label: "📅 Tous les 6 mois"  },
+    { id: "annuel",       label: "📅 Une fois par an"   },
+  ];
+
+  return (
+    <div style={{ marginTop: 24, background: "var(--carte-bg)", borderRadius: 20, padding: "18px 16px",
+      border: `1px solid ${COULEURS.bordure}`, boxShadow: "0 4px 16px rgba(46,34,48,0.06)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 20 }}>📖</span>
+        <span style={{ fontWeight: 800, fontSize: 15, color: COULEURS.encre }}>Album papier</span>
+      </div>
+      <p style={{ fontSize: 12, color: COULEURS.doux, margin: "0 0 12px", lineHeight: 1.6 }}>
+        Recevez vos souvenirs imprimés selon le rythme qui vous convient.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {rythmes.map(r => (
+          <button key={r.id}
+            onClick={() => allerVers("tarifs_impression", capsule.id)}
+            style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+              background: "rgba(0,0,0,0.03)", border: `1px solid ${COULEURS.bordure}`,
+              borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 600,
+              color: COULEURS.encre, textAlign: "left", cursor: "pointer",
+              fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <span>{r.label}</span>
+            {r.badge && (
+              <span style={{ fontSize: 10, fontWeight: 800, background: COULEURS.corail,
+                color: "#fff", borderRadius: 999, padding: "2px 8px" }}>{r.badge}</span>
+            )}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1951,7 +4301,7 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
 // Liste triable par pression longue (450 ms) puis glisser.
 // Deux affichages : grille compacte 3 colonnes (défaut) ou liste complète (accessibilité).
 // L'ordre et la préférence d'affichage sont persistés dans localStorage.
-function TriableTypes({ onSelect }) {
+function TriableTypes({ onSelect, capsule, onUpgradeMedia }) {
   const [ordre, setOrdre] = React.useState(() => {
     try {
       const s = localStorage.getItem("blooom_ordre_types");
@@ -2036,7 +4386,18 @@ function TriableTypes({ onSelect }) {
     localStorage.setItem("blooom_affichage_types", next);
   }
 
-  const handlers = (id) => ({
+  // Calcule le statut quota d'un type de contribution pour cette capsule
+  function statutQuota(typeId) {
+    if (!capsule) return null;
+    const res = peutContribuer(capsule, typeId);
+    if (!res.peut) {
+      if (res.raison === "type_non_disponible") return { badge: "Non disponible", couleur: COULEURS.doux, grise: true, raison: "type_non_disponible" };
+      if (res.raison === "quota_atteint") return { badge: "Limite atteinte", couleur: "#FF5C5C", grise: true, raison: "quota_atteint" };
+    }
+    return null;
+  }
+
+  const handlers = (id, locked = false) => locked ? {} : ({
     onMouseDown:  () => commencerPression(id),
     onMouseUp:    () => clearTimeout(timer.current),
     onTouchStart: () => commencerPression(id),
@@ -2056,17 +4417,38 @@ function TriableTypes({ onSelect }) {
       {/* Grille compacte — 3 colonnes, tuiles icône + libellé */}
       {affichage === "compact" && (
         <div ref={container} onMouseMove={onMouseMove} onMouseUp={deposer} onTouchEnd={deposer}
-          style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, gridAutoRows: "80px" }}>
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, gridAutoRows: "80px", overflow: "visible" }}>
           {visuel.map((t, i) => {
             const saisi = dragging && drag.current.id === t.id;
+            const sq = statutQuota(t.id);
             return (
               <div key={t.id} ref={el => rows.current[i] = el}
-                style={{ opacity: saisi ? 0.45 : 1, transform: saisi ? "scale(1.06)" : "scale(1)", transition: dragging && !saisi ? "transform 0.12s" : "none" }}>
-                <button style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, background: "#fff", border: "none", borderRadius: 14, padding: "8px 6px", width: "100%", height: "100%", cursor: dragging ? "grabbing" : "default", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 3px 10px rgba(46,34,48,0.06)" }}
-                  {...handlers(t.id)}>
-                  <span style={{ fontSize: 24 }}>{t.icone}</span>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: COULEURS.encre, textAlign: "center", lineHeight: 1.3 }}>{t.nom}</span>
+                style={{ transform: saisi ? "scale(1.06)" : "scale(1)", transition: dragging && !saisi ? "transform 0.12s" : "none", position: "relative" }}>
+                <button style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, background: "#fff", border: "none", borderRadius: 14, padding: "8px 6px", width: "100%", height: "100%", cursor: sq?.grise ? "default" : dragging ? "grabbing" : "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", boxShadow: "0 3px 10px rgba(46,34,48,0.06)", opacity: saisi ? 0.45 : 1, overflow: "hidden", position: "relative" }}
+                  {...handlers(t.id, sq?.grise)}>
+                  <span style={{ fontSize: 24, opacity: sq?.grise ? 0.35 : 1 }}>{t.icone}</span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: COULEURS.encre, textAlign: "center", lineHeight: 1.3, opacity: sq?.grise ? 0.35 : 1 }}>{t.nom}</span>
+                  {sq?.grise && (
+                    <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                      background: "rgba(255,255,255,0.55)", borderRadius: 14 }}>
+                      <span style={{ fontSize: 9, fontWeight: 800, color: sq.couleur, textAlign: "center",
+                        background: "#fff", borderRadius: 6, padding: "2px 6px",
+                        boxShadow: "0 1px 4px rgba(0,0,0,0.10)" }}>{sq.badge}</span>
+                    </div>
+                  )}
                 </button>
+                {sq?.grise && sq.raison === "type_non_disponible" && onUpgradeMedia && (
+                  <button
+                    onMouseDown={e => e.stopPropagation()}
+                    onClick={e => { e.stopPropagation(); onUpgradeMedia(capsule?.id); }}
+                    style={{ position: "absolute", top: -8, right: -8,
+                      background: "linear-gradient(135deg,#FF8A3D,#FF5C5C)",
+                      border: "none", borderRadius: 10, padding: "3px 8px", fontSize: 9, fontWeight: 700,
+                      color: "#fff", cursor: "pointer", lineHeight: 1.4, zIndex: 10,
+                      boxShadow: "0 2px 8px rgba(255,92,92,0.45)", whiteSpace: "nowrap" }}>
+                    + Débloquer
+                  </button>
+                )}
               </div>
             );
           })}
@@ -2078,14 +4460,31 @@ function TriableTypes({ onSelect }) {
         <div ref={container} onMouseMove={onMouseMove} onMouseUp={deposer} onTouchEnd={deposer}>
           {visuel.map((t, i) => {
             const saisi = dragging && drag.current.id === t.id;
+            const sq = statutQuota(t.id);
             return (
               <div key={t.id} ref={el => rows.current[i] = el}
-                style={{ opacity: saisi ? 0.45 : 1, transform: saisi ? "scale(1.03)" : "scale(1)", transition: dragging && !saisi ? "transform 0.12s, opacity 0.12s" : "none" }}>
-                <button style={{ ...S.choixContrib, cursor: dragging ? "grabbing" : "default" }} {...handlers(t.id)}>
+                style={{ opacity: saisi ? 0.45 : 1, transform: saisi ? "scale(1.03)" : "scale(1)", transition: dragging && !saisi ? "transform 0.12s, opacity 0.12s" : "none", position: "relative" }}>
+                <button style={{ ...S.choixContrib, cursor: sq?.grise ? "default" : dragging ? "grabbing" : "default",
+                  opacity: sq?.grise ? 0.45 : 1, overflow: "hidden", position: "relative" }}
+                  {...handlers(t.id, sq?.grise)}>
                   <span style={{ fontSize: 22, marginRight: 12 }}>{t.icone}</span>
                   <span style={{ flex: 1, textAlign: "left" }}>{t.nom}</span>
-                  <span style={{ color: COULEURS.doux, fontSize: 16, userSelect: "none" }}>⠿</span>
+                  {sq?.grise
+                    ? <span style={{ fontSize: 10, fontWeight: 700, color: sq.couleur, whiteSpace: "nowrap" }}>{sq.badge}</span>
+                    : <span style={{ color: COULEURS.doux, fontSize: 16, userSelect: "none" }}>⠿</span>}
                 </button>
+                {sq?.grise && sq.raison === "type_non_disponible" && onUpgradeMedia && (
+                  <button
+                    onMouseDown={e => e.stopPropagation()}
+                    onClick={e => { e.stopPropagation(); onUpgradeMedia(capsule?.id); }}
+                    style={{ position: "absolute", top: 4, right: 4,
+                      background: "linear-gradient(135deg,#FF8A3D,#FF5C5C)",
+                      border: "none", borderRadius: 10, padding: "3px 8px", fontSize: 9, fontWeight: 700,
+                      color: "#fff", cursor: "pointer", lineHeight: 1.4, zIndex: 10,
+                      boxShadow: "0 2px 8px rgba(255,92,92,0.45)", whiteSpace: "nowrap" }}>
+                    + Débloquer
+                  </button>
+                )}
               </div>
             );
           })}
@@ -2331,7 +4730,7 @@ function LecteurVocal({ url, onRecommencer }) {
   }
 
   return (
-    <div style={{ marginTop: 14, borderRadius: 20, background: COULEURS.encre, padding: "20px 18px", position: "relative", overflow: "hidden" }}>
+    <div style={{ marginTop: 14, borderRadius: 20, background: COULEURS.encre, padding: "20px 18px 24px", position: "relative", overflow: "hidden", flexShrink: 0 }}>
       {/* blobs décoratifs */}
       <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "radial-gradient(circle, rgba(198,92,232,0.25) 0%, transparent 70%)", pointerEvents: "none" }} />
       <div style={{ position: "absolute", bottom: -20, left: -20, width: 90, height: 90, borderRadius: "50%", background: "radial-gradient(circle, rgba(255,92,157,0.2) 0%, transparent 70%)", pointerEvents: "none" }} />
@@ -2366,7 +4765,7 @@ function LecteurVocal({ url, onRecommencer }) {
       </div>
 
       {/* recommencer */}
-      <button onClick={onRecommencer} style={{ display: "block", margin: "0 auto", background: "transparent", border: "1px solid rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.55)", borderRadius: 20, padding: "6px 18px", fontSize: 12, cursor: "pointer" }}>
+      <button onClick={onRecommencer} style={{ display: "block", width: "100%", background: "rgba(255,255,255,0.12)", border: "1.5px solid rgba(255,255,255,0.35)", color: "#fff", borderRadius: 14, padding: "11px 0", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif", marginTop: 4 }}>
         🔄 Recommencer
       </button>
 
@@ -2471,9 +4870,481 @@ function CanvasDessin({ onSave }) {
 }
 
 // ============================================================================
+//  ÉCRAN SUCCÈS PACK INOUBLIABLE — affiché après l'achat d'un pack occasion
+//  Formulaire post-paiement : nommer + typer + dater la capsule payante.
+// ============================================================================
+function EcranSuccesPack({ creerCapsule, allerVers }) {
+  const [nom, setNom]         = useState("");
+  const [type, setType]       = useState(null);
+  const [date, setDate]       = useState("");
+  const [enCours, setEnCours] = useState(false);
+
+  const peutCreer = nom.trim().length > 0 && type !== null;
+
+  async function validerCreation() {
+    setEnCours(true);
+    try {
+      await creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture: null, formule: "occasion" });
+      // creerCapsule navigue automatiquement vers "detail"
+    } catch (e) {
+      alert("Erreur : " + e.message);
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <div style={S.ecran}>
+      {/* Bandeau pack */}
+      <div style={{
+        background: "linear-gradient(160deg,#1e1b4b 0%,#4c1d95 60%,#6d28d9 100%)",
+        padding: "44px 24px 22px", position: "relative", overflow: "hidden",
+        borderRadius: 24, margin: "0 0 20px", flexShrink: 0,
+      }}>
+        <div style={{ position: "absolute", top: -10, right: -10, fontSize: 80, opacity: 0.07, lineHeight: 1 }}>🎉</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ fontSize: 36, lineHeight: 1 }}>🎉</div>
+          <div>
+            <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+              fontSize: 18, color: "#fff" }}>Pack Inoubliable activé !</div>
+            <div style={{ fontSize: 11, color: "rgba(167,139,250,0.9)", marginTop: 2,
+              fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Donnez un nom et une date à votre capsule
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Inclus Pack Inoubliable */}
+      <div style={{ background: "#EEF2FF", border: "1.5px solid #C7D2FE", borderRadius: 16,
+        padding: "12px 16px", marginBottom: 16 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#3730a3", marginBottom: 6, letterSpacing: 0.3 }}>
+          ✅ Inclus dans votre Pack Inoubliable
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 14px" }}>
+          {["📷 150 photos", "🎬 20 vidéos", "🎤 10 vocaux", "👥 50 participants"].map((item, i) => (
+            <div key={i} style={{ fontSize: 12, color: "#3730a3", fontWeight: 600,
+              fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{item}</div>
+          ))}
+        </div>
+      </div>
+
+      <label style={S.label}>Nom de la capsule</label>
+      <input style={S.input} placeholder="Ex. Soirée chez Jules, Road trip Espagne…"
+        value={nom} onChange={e => setNom(e.target.value)} />
+
+      <label style={S.label}>Quel type ?</label>
+      <div style={S.grilleTypes}>
+        {TYPES_CAPSULES.filter(t => ["weekend","evjf","soiree","festival","libre"].includes(t.id)).map(t => (
+          <button key={t.id} onMouseDown={e => e.preventDefault()} onClick={() => setType(t.id)}
+            style={{ ...S.tuileType,
+              border: type === t.id ? `2px solid ${t.teinte}` : "2px solid transparent",
+              background: type === t.id ? t.teinte + "18" : "#fff",
+              transform: type === t.id ? "scale(1.04)" : "scale(1)",
+              boxShadow: type === t.id ? `0 4px 14px ${t.teinte}44` : "0 3px 10px rgba(46,34,48,0.06)",
+              transition: "transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease" }}>
+            <div style={{ ...S.tuileIcone, background: t.teinte + "22" }}>{t.icone}</div>
+            <div style={S.tuileTypeNom}>{t.nom === "Capsule libre" ? "Autres" : t.nom === "EVJF / EVG" ? "EVG / EVJF" : t.nom}</div>
+          </button>
+        ))}
+      </div>
+
+      <label style={{ ...S.label, marginTop: 18 }}>Date d'ouverture</label>
+      <SelecteurDate valeur={date} onChange={setDate} />
+
+      <button style={{ ...S.boutonPrincipal, ...(!peutCreer || enCours ? S.boutonDesactive : {}),
+        background: peutCreer ? "linear-gradient(135deg,#3730a3,#6d28d9)" : undefined }}
+        disabled={!peutCreer || enCours} onClick={validerCreation}>
+        {enCours ? "Création en cours…" : "Créer la capsule →"}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN SUCCÈS MARIAGE : formulaire de création post-paiement — design wedding
+// ============================================================================
+function EcranSuccesMariage({ creerCapsule, allerVers }) {
+  const [nom, setNom]         = useState("");
+  const [date, setDate]       = useState("");
+  const [enCours, setEnCours] = useState(false);
+
+  const peutCreer = nom.trim().length > 0;
+
+  async function validerCreation() {
+    setEnCours(true);
+    try {
+      await creerCapsule({ nom: nom.trim(), type: "mariage", dateOuverture: date || null,
+        couverture: null, formule: "mariage", ecranSucces: "qr_mariage" });
+    } catch (e) {
+      alert("Erreur : " + e.message);
+      setEnCours(false);
+    }
+  }
+
+  const BandeauMariage = ({ sousTitre }) => (
+    <div style={{ background: "linear-gradient(150deg,#3D0C11 0%,#831843 45%,#BE185D 75%,#C9A84C 100%)",
+      padding: "44px 24px 22px", position: "relative", overflow: "hidden",
+      borderRadius: 24, margin: "0 0 20px", flexShrink: 0 }}>
+      <div style={{ position:"absolute", top:12, left:22, fontSize:14, opacity:0.55 }}>✨</div>
+      <div style={{ position:"absolute", top:28, right:32, fontSize:18, opacity:0.45 }}>💫</div>
+      <div style={{ position:"absolute", bottom:14, left:44, fontSize:11, opacity:0.5 }}>✨</div>
+      <div style={{ position:"absolute", top:8, right:16, fontSize:22, opacity:0.4 }}>🥂</div>
+      <div style={{ position:"absolute", bottom:10, right:28, fontSize:10, opacity:0.55 }}>⭐</div>
+      <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+        <div style={{ fontSize:40, lineHeight:1 }}>💍</div>
+        <div>
+          <div style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontWeight:800,
+            fontSize:18, color:"#fff" }}>Pack Mariage activé !</div>
+          <div style={{ fontSize:11, color:"rgba(255,215,100,0.9)", marginTop:2,
+            fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{sousTitre}</div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={S.ecran}>
+      <BandeauMariage sousTitre="Créez votre capsule de souvenirs" />
+
+      <div style={{ background:"#FFF7ED", border:"1.5px solid #C9A84C", borderRadius:16,
+        padding:"12px 16px", marginBottom:16 }}>
+        <div style={{ fontSize:12, fontWeight:800, color:"#78350F", marginBottom:6, letterSpacing:0.3 }}>
+          💍 Inclus dans votre Pack Mariage
+        </div>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:"5px 14px" }}>
+          {["📷 500 photos","🎬 50 vidéos","🎤 30 vocaux","👥 Participants illimités","🖨️ QR codes invités"].map((item,i) => (
+            <div key={i} style={{ fontSize:12, color:"#92400E", fontWeight:600,
+              fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{item}</div>
+          ))}
+        </div>
+      </div>
+
+      <label style={S.label}>Nom de la capsule</label>
+      <input style={S.input} placeholder="Ex. Mariage de Sophie & Thomas…"
+        value={nom} onChange={e => setNom(e.target.value)} />
+
+      <label style={{ ...S.label, marginTop: 8 }}>Date d'ouverture</label>
+      <SelecteurDate valeur={date} onChange={setDate} />
+
+      <button style={{ ...S.boutonPrincipal, ...(!peutCreer||enCours ? S.boutonDesactive : {}),
+        background: peutCreer ? "linear-gradient(135deg,#3D0C11,#831843,#BE185D,#C9A84C)" : undefined }}
+        disabled={!peutCreer||enCours} onClick={validerCreation}>
+        {enCours ? "Création en cours…" : "💍 Créer ma capsule →"}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN QR CODE MARIAGE : partage et impression après création
+// ============================================================================
+function EcranQrMariage({ capsule, allerVers }) {
+  const [copie, setCopie] = useState(false);
+
+  if (!capsule) return (
+    <div style={S.ecran}>
+      <p style={{ textAlign:"center", color:COULEURS.doux, marginTop:60 }}>Chargement…</p>
+    </div>
+  );
+
+  const lien  = lienPartage(capsule.code);
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(lien)}&color=3D0C11&bgcolor=FFF7ED&margin=12`;
+
+  async function partager() {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `Rejoins ma capsule Blooom "${capsule.nom}"`,
+          text:  `Rejoins notre capsule mariage "${capsule.nom}" ! 💍\n\nCode : ${capsule.code}\nLien : ${lien}`,
+        });
+      } else {
+        await navigator.clipboard.writeText(`Code : ${capsule.code}\nLien : ${lien}`);
+        setCopie(true); setTimeout(() => setCopie(false), 2000);
+      }
+    } catch (e) { /* annulé */ }
+  }
+
+  function imprimer() {
+    const w = window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    <title>QR Code — ${capsule.nom}</title>
+    <style>
+      body{font-family:Georgia,serif;display:flex;flex-direction:column;align-items:center;
+        justify-content:center;min-height:100vh;margin:0;background:#FFF7ED;}
+      .carte{background:#fff;border:2px solid #C9A84C;border-radius:16px;padding:32px 28px;
+        text-align:center;max-width:300px;box-shadow:0 4px 20px rgba(131,24,67,.15);}
+      .emoji{font-size:28px;margin-bottom:8px;}
+      h2{color:#3D0C11;margin:0 0 4px;font-size:19px;}
+      .sub{color:#92400E;font-size:13px;margin:0 0 20px;}
+      img{width:200px;height:200px;border-radius:8px;}
+      .url{font-size:10px;color:#78350F;margin-top:14px;word-break:break-all;}
+      @media print{body{background:#fff;}}
+    </style></head><body>
+    <div class="carte">
+      <div class="emoji">💍</div>
+      <h2>${capsule.nom}</h2>
+      <p class="sub">Scannez pour rejoindre la capsule</p>
+      <img src="${qrUrl}" alt="QR Code" />
+      <div class="url">${lien}</div>
+    </div></body></html>`);
+    w.document.close(); w.focus();
+    setTimeout(()=>{ w.print(); }, 400);
+  }
+
+  return (
+    <div style={S.ecran}>
+      {/* Bandeau célébration */}
+      <div style={{ background:"linear-gradient(150deg,#3D0C11 0%,#831843 45%,#BE185D 75%,#C9A84C 100%)",
+        padding:"44px 24px 22px", position:"relative", overflow:"hidden",
+        borderRadius:24, margin:"0 0 20px", flexShrink:0 }}>
+        <div style={{ position:"absolute", top:12, left:22, fontSize:14, opacity:0.55 }}>✨</div>
+        <div style={{ position:"absolute", top:28, right:32, fontSize:18, opacity:0.45 }}>💫</div>
+        <div style={{ position:"absolute", bottom:14, left:44, fontSize:11, opacity:0.5 }}>✨</div>
+        <div style={{ position:"absolute", top:8, right:16, fontSize:22, opacity:0.4 }}>🥂</div>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <div style={{ fontSize:40, lineHeight:1 }}>💍</div>
+          <div>
+            <div style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontWeight:800,
+              fontSize:18, color:"#fff" }}>Votre capsule est prête !</div>
+            <div style={{ fontSize:12, color:"rgba(255,215,100,0.9)", marginTop:2,
+              fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{capsule.nom}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* QR code */}
+      <div style={{ background:"#FFF7ED", border:"2px solid #C9A84C", borderRadius:20,
+        padding:"22px 20px", textAlign:"center", marginBottom:14, flexShrink:0 }}>
+        <div style={{ fontSize:13, fontWeight:700, color:"#78350F", marginBottom:14,
+          fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+          🖨️ QR code à imprimer pour vos invités
+        </div>
+        <img src={qrUrl} alt="QR Code invitation"
+          style={{ width:200, height:200, borderRadius:12,
+            boxShadow:"0 4px 16px rgba(131,24,67,0.2)" }} />
+        <div style={{ fontSize:10, color:"#92400E", marginTop:10, wordBreak:"break-all",
+          fontFamily:"'Plus Jakarta Sans',sans-serif", opacity:0.8 }}>{lien}</div>
+      </div>
+
+      <button onClick={imprimer}
+        style={{ width:"100%", padding:"14px 0", borderRadius:16, border:"none",
+          background:"linear-gradient(135deg,#3D0C11,#831843,#BE185D,#C9A84C)",
+          color:"#fff", fontWeight:700, fontSize:15, cursor:"pointer", marginBottom:10,
+          fontFamily:"'Bricolage Grotesque',sans-serif",
+          boxShadow:"0 4px 14px rgba(131,24,67,0.35)",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+        <span>🖨️</span><span>Imprimer le QR code</span>
+      </button>
+
+      <button onClick={partager}
+        style={{ width:"100%", padding:"13px 0", borderRadius:16,
+          border:"1.5px solid #C9A84C", background:"none", color:"#831843",
+          fontWeight:700, fontSize:14, cursor:"pointer", marginBottom:10,
+          fontFamily:"'Bricolage Grotesque',sans-serif",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+        <span>📨</span><span>{copie ? "✓ Lien copié !" : "Partager l'invitation"}</span>
+      </button>
+
+      <button onClick={() => allerVers("detail", capsule.id)}
+        style={{ width:"100%", padding:"13px 0", borderRadius:16, border:"none",
+          background:"var(--carte-bg)", color:COULEURS.encre,
+          fontWeight:700, fontSize:14, cursor:"pointer",
+          fontFamily:"'Bricolage Grotesque',sans-serif",
+          boxShadow:"0 2px 8px rgba(46,34,48,0.06)",
+          display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+        <span>💍</span><span>Voir ma capsule</span>
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN UPGRADE MÉDIA : achat rapide de +5 vidéos et/ou +5 vocaux
+// ============================================================================
+function EcranUpgradeMedia({ capsule, allerVers, acheterUpgradeMedia, ecranPrecedent }) {
+  const [enCours, setEnCours] = useState(null);
+
+  const options = [
+    {
+      id: "upgrade_videos",
+      emoji: "🎬",
+      titre: "+5 vidéos",
+      desc: "Déposez jusqu'à 5 vidéos (20s max) dans cette capsule",
+      prix: "2,99€",
+      prixCents: 299,
+    },
+    {
+      id: "upgrade_vocaux",
+      emoji: "🎤",
+      titre: "+5 messages vocaux",
+      desc: "Déposez jusqu'à 5 memos vocaux (20s max) dans cette capsule",
+      prix: "2,99€",
+      prixCents: 299,
+    },
+    {
+      id: "upgrade_videos_vocaux",
+      emoji: "🎬🎤",
+      titre: "Pack vidéos + vocaux",
+      desc: "5 vidéos et 5 vocaux — économisez 1€ par rapport à l'achat séparé",
+      prix: "4,99€",
+      prixCents: 499,
+      badge: "Meilleure offre",
+    },
+  ];
+
+  async function acheter(opt) {
+    setEnCours(opt.id);
+    try {
+      await acheterUpgradeMedia(opt.id, capsule.id);
+    } catch (e) {
+      alert("Erreur : " + e.message);
+      setEnCours(null);
+    }
+  }
+
+  return (
+    <div style={{ ...S.ecran, display: "flex", flexDirection: "column" }}>
+      <EnTeteRetour titre="Débloquer du contenu" onRetour={() => allerVers(ecranPrecedent || "detail", capsule.id)} />
+      <div style={{ flex: 1, padding: "0 20px 24px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {options.map(opt => (
+            <div key={opt.id} style={{ position: "relative", background: "#fff", borderRadius: 16,
+              padding: "14px 16px",
+              boxShadow: opt.badge ? "0 4px 20px rgba(255,92,92,0.15)" : "0 2px 10px rgba(46,34,48,0.07)",
+              border: opt.badge ? "1.5px solid #FF5C5C30" : "1.5px solid transparent" }}>
+              {opt.badge && (
+                <div style={{ position: "absolute", top: -9, right: 12,
+                  background: "linear-gradient(135deg,#FF8A3D,#FF5C5C)", color: "#fff",
+                  fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "2px 9px" }}>
+                  {opt.badge}
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 28, lineHeight: 1, flexShrink: 0 }}>{opt.emoji}</span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre }}>{opt.titre}</div>
+                  <div style={{ fontSize: 12, color: COULEURS.doux, marginTop: 2 }}>{opt.desc}</div>
+                </div>
+                <button
+                  disabled={!!enCours}
+                  onClick={() => acheter(opt)}
+                  style={{ flexShrink: 0, padding: "9px 14px", borderRadius: 12, border: "none",
+                    cursor: enCours ? "default" : "pointer",
+                    background: enCours === opt.id ? COULEURS.doux : "linear-gradient(135deg,#FF8A3D,#FF5C5C)",
+                    color: "#fff", fontWeight: 700, fontSize: 13,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    opacity: enCours && enCours !== opt.id ? 0.5 : 1,
+                    transition: "opacity 0.15s" }}>
+                  {enCours === opt.id ? "…" : opt.prix}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <p style={{ fontSize: 11, color: COULEURS.doux, textAlign: "center", margin: "12px 0 10px" }}>
+            🔐 Stripe · Paiement sécurisé · Disponible immédiatement
+          </p>
+
+        <button onClick={() => allerVers("creer")}
+          style={{ width: "100%", padding: "15px 0", borderRadius: 16, border: "none",
+            background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 100%)",
+            color: "#fff", fontWeight: 700, fontSize: 15,
+            cursor: "pointer", fontFamily: "'Bricolage Grotesque', sans-serif",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          <span style={{ fontSize: 18 }}>✨</span>
+          <span>Voir toutes les formules Blooom</span>
+          <span style={{ fontSize: 13, opacity: 0.6 }}>→</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  );
+}
+
+function WheelCol({ items, value, onChange }) {
+  const ref = React.useRef(null);
+  const H = 22;
+  const timer = React.useRef(null);
+
+  React.useLayoutEffect(() => {
+    const idx = items.findIndex(x => x.v === value);
+    if (ref.current && idx >= 0) ref.current.scrollTop = idx * H;
+  }, []);
+
+  React.useEffect(() => {
+    const idx = items.findIndex(x => x.v === value);
+    if (ref.current && idx >= 0) {
+      const target = idx * H;
+      if (Math.abs(ref.current.scrollTop - target) > H / 2)
+        ref.current.scrollTo({ top: target, behavior: "smooth" });
+    }
+  }, [value]);
+
+  const onScroll = () => {
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
+      if (!ref.current) return;
+      const idx = Math.round(ref.current.scrollTop / H);
+      const item = items[Math.max(0, Math.min(idx, items.length - 1))];
+      if (item && item.v !== value) onChange(item.v);
+    }, 80);
+  };
+
+  return (
+    <div style={{ flex: 1, position: "relative", height: H * 3, overflow: "hidden" }}>
+      <div style={{ position: "absolute", top: H, left: 1, right: 1, height: H, background: "rgba(255,138,61,0.12)", borderTop: "1px solid rgba(255,138,61,0.45)", borderBottom: "1px solid rgba(255,138,61,0.45)", borderRadius: 6, pointerEvents: "none", zIndex: 2 }} />
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: H, background: "linear-gradient(to bottom, var(--input-bg) 20%, transparent)", pointerEvents: "none", zIndex: 2 }} />
+      <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: H, background: "linear-gradient(to top, var(--input-bg) 20%, transparent)", pointerEvents: "none", zIndex: 2 }} />
+      <div ref={ref} onScroll={onScroll} className="bwhl"
+        style={{ height: "100%", overflowY: "scroll", scrollSnapType: "y mandatory", scrollbarWidth: "none", msOverflowStyle: "none" }}>
+        <div style={{ height: H }} />
+        {items.map(item => (
+          <div key={item.v} style={{ height: H, display: "flex", alignItems: "center", justifyContent: "center", scrollSnapAlign: "center", fontSize: 10, fontWeight: 600, color: COULEURS.encre, fontFamily: "'Plus Jakarta Sans', sans-serif", userSelect: "none" }}>
+            {item.l}
+          </div>
+        ))}
+        <div style={{ height: H }} />
+      </div>
+    </div>
+  );
+}
+
+function DateTimePicker({ value, onChange }) {
+  const fallback = React.useRef(new Date().toISOString());
+  const iso = value || fallback.current;
+  const d = new Date(iso);
+  const j = d.getDate(), mo = d.getMonth() + 1, an = d.getFullYear(), h = d.getHours(), mi = d.getMinutes();
+  const upd = (nj, nmo, nan, nh, nmi) => {
+    const nd = new Date(nan, nmo - 1, nj, nh, nmi);
+    if (!isNaN(nd)) onChange(nd.toISOString());
+  };
+  const Y = new Date().getFullYear();
+  const days    = Array.from({length:31}, (_,i) => ({ v:i+1, l:String(i+1).padStart(2,"0") }));
+  const months  = ["Jan","Fév","Mar","Avr","Mai","Jui","Jul","Aoû","Sep","Oct","Nov","Déc"].map((l,i) => ({ v:i+1, l }));
+  const years   = Array.from({length:11}, (_,i) => ({ v:Y-10+i, l:String(Y-10+i) }));
+  const hours   = Array.from({length:24}, (_,i) => ({ v:i, l:String(i).padStart(2,"0") }));
+  const minutes = Array.from({length:60}, (_,i) => ({ v:i, l:String(i).padStart(2,"0") }));
+
+  return (
+    <div style={{ background: "var(--input-bg)", borderRadius: 14, display: "flex", alignItems: "center", padding: "4px 8px", gap: 2, boxShadow: "0 2px 8px rgba(46,34,48,0.06)" }}>
+      <style>{`.bwhl::-webkit-scrollbar{display:none}`}</style>
+      <WheelCol items={days}    value={j}  onChange={v => upd(v, mo, an, h, mi)} />
+      <WheelCol items={months}  value={mo} onChange={v => upd(j, v, an, h, mi)} />
+      <WheelCol items={years}   value={an} onChange={v => upd(j, mo, v, h, mi)} />
+      <div style={{ width: 1, height: 24, background: COULEURS.bordure, flexShrink: 0, margin: "0 4px" }} />
+      <WheelCol items={hours}   value={h}  onChange={v => upd(j, mo, an, v, mi)} />
+      <div style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, color: COULEURS.doux }}>:</div>
+      <WheelCol items={minutes} value={mi} onChange={v => upd(j, mo, an, h, v)} />
+    </div>
+  );
+}
+
+// ============================================================================
 //  ÉCRAN CONTRIBUTION : auteur choisi PARMI LES PARTICIPANTS de la capsule.
 // ============================================================================
-function EcranContribution({ capsule, moi, allerVers, ajouterContribution, editerParticipant }) {
+function EcranContribution({ capsule, moi, allerVers, ajouterContribution, editerParticipant, onUpgradeMedia }) {
   const moisParticipant = capsule.participants.find((p) => p.userId === moi?.id) || capsule.participants[0];
   const [auteurIds, setAuteurIds] = useState(moisParticipant ? [moisParticipant.id] : []);
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
@@ -2497,9 +5368,21 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
   const audioCtxRef    = React.useRef(null);
   const animFrameRef   = React.useRef(null);
   const vizCanvasRef   = React.useRef(null);
+  const autoStopRef    = React.useRef(null);
+  const chronoRef      = React.useRef(null);
+  const [tempsRestant, setTempsRestant] = useState(null);
+  const inputCameraRef  = React.useRef(null);
+  const inputGalerieRef = React.useRef(null);
 
   // Dessin — base64 PNG produit par CanvasDessin
   const [dessinData, setDessinData] = useState(null);
+  const [commentaireDessin, setCommentaireDessin] = useState("");
+
+  // Date de prise de vue (photo/vidéo) — auto-détectée depuis EXIF, modifiable manuellement
+  const [datePrise, setDatePrise] = useState(null);
+
+  // Document PDF — objet File sélectionné par l'utilisateur
+  const [pdfFichier, setPdfFichier] = useState(null);
 
   // Une du jour — données récupérées depuis Le Monde via rss2json
   const [uneData, setUneData] = useState(null);
@@ -2523,6 +5406,8 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
     return () => {
       enregistreurRef.current?.state === "recording" && enregistreurRef.current.stop();
       cancelAnimationFrame(animFrameRef.current);
+      clearTimeout(autoStopRef.current);
+      clearInterval(chronoRef.current);
       audioCtxRef.current?.close();
       if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
@@ -2610,6 +5495,13 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
       recorder.start();
       enregistreurRef.current = recorder;
       setEnregistrement(true);
+      setTempsRestant(20);
+      // Arrêt automatique à 20s
+      autoStopRef.current = setTimeout(() => enregistreurRef.current?.stop(), 20000);
+      // Décompte seconde par seconde
+      chronoRef.current = setInterval(() => {
+        setTempsRestant(t => { if (t <= 1) { clearInterval(chronoRef.current); return 0; } return t - 1; });
+      }, 1000);
       // Lancer la viz après le setState pour que le canvas soit monté
       setTimeout(lancerViz, 50);
     } catch (e) {
@@ -2618,6 +5510,8 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
   }
 
   function arreterEnregistrement() {
+    clearTimeout(autoStopRef.current);
+    clearInterval(chronoRef.current);
     enregistreurRef.current?.stop();
   }
 
@@ -2625,6 +5519,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioBlob(null);
     setAudioUrl(null);
+    setTempsRestant(null);
   }
 
   // Récupère la une du jour via allorigins.win (proxy CORS gratuit) + DOMParser.
@@ -2740,7 +5635,8 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
     (typeContrib === "pari"             && texte.trim() && voteDepositaire !== null) ||
     (typeContrib === "une_du_jour"      && uneData) ||
     (typeContrib === "meteo"            && meteoData) ||
-    (typeContrib === "chanson"          && chansonSelectionnee);
+    (typeContrib === "chanson"          && chansonSelectionnee) ||
+    (typeContrib === "document"         && pdfFichier);
 
   async function envoyer() {
     // La question field sert à stocker des données structurées JSON pour certains types.
@@ -2751,15 +5647,23 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
     : typeContrib === "pari"             ? JSON.stringify({ votes: moisParticipant && voteDepositaire ? { [moisParticipant.id]: { vote: voteDepositaire, commentaire: "", ts: new Date().toISOString() } } : {} })
     : null;
 
+    // Pour un document, on utilise le titre saisi OU le nom original du fichier
+    const texteAEnvoyer = typeContrib === "document"
+      ? (texte.trim() || pdfFichier?.name || "Document PDF")
+      : typeContrib === "dessin"
+      ? commentaireDessin.trim()
+      : texte.trim();
+
     await ajouterContribution(capsule.id, {
-      id: genererId(), auteurId: auteurIds[0], type: typeContrib, texte: texte.trim(),
+      id: genererId(), auteurId: auteurIds[0], type: typeContrib, texte: texteAEnvoyer,
       question: questionField,
       media: (typeContrib === "photo" || typeContrib === "video") ? media
-           : typeContrib === "vocal"   ? audioBlob
-           : typeContrib === "dessin"  ? dessinData
+           : typeContrib === "vocal"    ? audioBlob
+           : typeContrib === "dessin"   ? dessinData
+           : typeContrib === "document" ? pdfFichier
            : null,
       filtre, ambiance: typeContrib === "message" ? ambiance : null,
-      date: new Date().toISOString(), reactions: {},
+      date: datePrise || new Date().toISOString(), reactions: {},
     });
     allerVers("detail", capsule.id);
   }
@@ -2832,7 +5736,8 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
       {!typeContrib && (
         <>
           <label style={S.label}>Que voulez-vous déposer ?</label>
-          <TriableTypes onSelect={(id) => { setTypeContrib(id); }} />
+          <TriableTypes onSelect={(id) => { setTypeContrib(id); }} capsule={capsule}
+            onUpgradeMedia={capsule.createurId === moi?.id ? onUpgradeMedia : undefined} />
         </>
       )}
 
@@ -2852,16 +5757,70 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
       )}
 
 
-      {(typeContrib === "photo" || typeContrib === "video") && (
-        <>
-          <label style={S.label}>Votre {typeContrib === "photo" ? "photo" : "vidéo"}</label>
-          <input type="file" style={S.input} accept={typeContrib === "photo" ? "image/*" : "video/*"} onChange={(e) => lireFichierEnBase64(e, setMedia)} />
-          {media && typeContrib === "photo" && <img src={media} alt="aperçu" style={S.apercuMedia} />}
-          {media && typeContrib === "video" && <video src={media} controls style={S.apercuMedia} />}
-          <label style={S.label}>Une légende (optionnel)</label>
-          <input style={S.input} placeholder="Quelques mots..." value={texte} onChange={(e) => setTexte(e.target.value)} />
-        </>
-      )}
+      {(typeContrib === "photo" || typeContrib === "video") && (() => {
+        const accept = typeContrib === "photo" ? "image/*" : "video/*";
+        const onSelect = async (e) => {
+          const file = e.target.files[0]; if (!file) return;
+          if (typeContrib === "video") {
+            const duree = await new Promise(res => {
+              const v = document.createElement("video");
+              v.preload = "metadata";
+              v.onloadedmetadata = () => { URL.revokeObjectURL(v.src); res(v.duration); };
+              v.onerror = () => res(null);
+              v.src = URL.createObjectURL(file);
+            });
+            if (duree > 20) {
+              alert(`Vidéo trop longue (${Math.round(duree)}s). Maximum 20 secondes.`);
+              e.target.value = "";
+              return;
+            }
+          }
+          lireFichierEnBase64(e, setMedia);
+          const exif = typeContrib === "photo" ? await lireExifDate(file) : null;
+          setDatePrise(exif || new Date(file.lastModified).toISOString());
+        };
+        return (
+          <>
+            {/* Inputs cachés — déclenchés par les boutons via refs */}
+            <input ref={inputCameraRef}  type="file" accept={accept} capture="environment"
+              style={{ position: "absolute", width: 0, height: 0, opacity: 0, overflow: "hidden" }}
+              onChange={onSelect} />
+            <input ref={inputGalerieRef} type="file" accept={accept}
+              style={{ position: "absolute", width: 0, height: 0, opacity: 0, overflow: "hidden" }}
+              onChange={onSelect} />
+
+            <label style={S.label}>Date et heure du souvenir</label>
+            <DateTimePicker value={datePrise} onChange={setDatePrise} />
+            <label style={S.label}>Votre {typeContrib === "photo" ? "photo" : "vidéo"}</label>
+            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+              <button type="button" onClick={() => inputCameraRef.current?.click()}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  padding: "13px 0", borderRadius: 14, border: "none",
+                  background: "linear-gradient(135deg,#3730a3,#6d28d9)", color: "#fff",
+                  fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  boxShadow: "0 3px 10px rgba(109,40,217,0.3)" }}>
+                <span>{typeContrib === "photo" ? "📷" : "🎬"}</span>
+                <span>{typeContrib === "photo" ? "Prendre une photo" : "Filmer"}</span>
+              </button>
+              <button type="button" onClick={() => inputGalerieRef.current?.click()}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  padding: "13px 0", borderRadius: 14, border: `1.5px solid ${COULEURS.doux}40`,
+                  background: "var(--carte-bg)", color: COULEURS.encre,
+                  fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  boxShadow: "0 2px 8px rgba(46,34,48,0.06)" }}>
+                <span>🖼️</span>
+                <span>Galerie</span>
+              </button>
+            </div>
+            {media && typeContrib === "photo" && <img src={media} alt="aperçu" style={S.apercuMedia} />}
+            {media && typeContrib === "video" && <video src={media} controls style={S.apercuMedia} />}
+            <label style={S.label}>Une légende (optionnel)</label>
+            <input style={S.input} placeholder="Quelques mots..." value={texte} onChange={(e) => setTexte(e.target.value)} />
+          </>
+        );
+      })()}
 
       {typeContrib === "vocal" && (
         <>
@@ -2872,12 +5831,24 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
           )}
           {enregistrement && (
             <div style={S.blocEnregistrement}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={S.pointRouge} />
-                <span style={{ fontWeight: 700, color: "#FF3B30", fontSize: 14 }}>Enregistrement en cours…</span>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={S.pointRouge} />
+                  <span style={{ fontWeight: 700, color: "#FF3B30", fontSize: 14 }}>En cours…</span>
+                </div>
+                <span style={{ fontWeight: 800, fontSize: 16, color: tempsRestant <= 5 ? "#FF3B30" : COULEURS.encre,
+                  fontFamily: "'Bricolage Grotesque', sans-serif" }}>
+                  {tempsRestant}s
+                </span>
+              </div>
+              {/* Barre de décompte */}
+              <div style={{ height: 4, borderRadius: 99, background: "#E5E7EB", overflow: "hidden", margin: "6px 0" }}>
+                <div style={{ height: "100%", borderRadius: 99, transition: "width 1s linear",
+                  width: `${(tempsRestant / 20) * 100}%`,
+                  background: tempsRestant <= 5 ? "#FF3B30" : "linear-gradient(90deg,#6d28d9,#FF5C9D)" }} />
               </div>
               <canvas ref={vizCanvasRef}
-                style={{ width: "100%", height: 64, borderRadius: 12, background: COULEURS.encre, display: "block" }} />
+                style={{ width: "100%", height: 56, borderRadius: 12, background: COULEURS.encre, display: "block" }} />
               <button style={{ ...S.boutonMini, marginTop: 0, background: COULEURS.encre }} onClick={arreterEnregistrement}>
                 ⏹ Arrêter
               </button>
@@ -2894,6 +5865,8 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
         <>
           <label style={S.label}>Dessinez avec le doigt</label>
           <CanvasDessin onSave={setDessinData} />
+          <label style={{ ...S.label, marginTop: 10 }}>Ajouter un commentaire (optionnel)</label>
+          <input style={S.input} placeholder="Un mot sur ce dessin…" value={commentaireDessin} onChange={e => setCommentaireDessin(e.target.value)} />
         </>
       )}
 
@@ -3013,7 +5986,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
           {resultatsMusique.length > 0 && !chansonSelectionnee && (
             <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
               {resultatsMusique.map((r, i) => (
-                <button key={i} onClick={() => setChansonSelectionnee({ titre: r.trackName, artiste: r.artistName, pochette: r.artworkUrl100?.replace("100x100", "300x300"), urlApple: r.trackViewUrl })}
+                <button key={i} onClick={() => setChansonSelectionnee({ titre: r.trackName, artiste: r.artistName, pochette: r.artworkUrl100?.replace("100x100", "300x300"), urlApple: r.trackViewUrl, previewUrl: r.previewUrl })}
                   style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", border: "none", borderRadius: 14, padding: "10px 12px", cursor: "pointer", textAlign: "left", boxShadow: "0 2px 8px rgba(46,34,48,0.06)" }}>
                   <img src={r.artworkUrl100} alt="" style={{ width: 44, height: 44, borderRadius: 8, flexShrink: 0 }} />
                   <div>
@@ -3067,6 +6040,47 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
               )}
             </div>
           )}
+        </>
+      )}
+
+      {/* Document PDF — sélection du fichier + titre optionnel */}
+      {typeContrib === "document" && (
+        <>
+          <label style={S.label}>Fichier PDF</label>
+          <input
+            type="file"
+            accept="application/pdf"
+            style={S.input}
+            onChange={e => { const f = e.target.files[0]; if (f) setPdfFichier(f); }}
+          />
+          {/* Aperçu du fichier sélectionné */}
+          {pdfFichier && (
+            <div style={{ background: "var(--carte-bg)", borderRadius: 16, padding: "14px 16px", marginTop: 12,
+              display: "flex", alignItems: "center", gap: 14, boxShadow: "0 4px 14px rgba(46,34,48,0.07)" }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: DEGRADE,
+                display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, flexShrink: 0 }}>
+                📄
+              </div>
+              <div style={{ flex: 1, overflow: "hidden" }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {pdfFichier.name}
+                </div>
+                <div style={{ fontSize: 12, color: COULEURS.doux, marginTop: 2 }}>
+                  {(pdfFichier.size / 1024).toFixed(0)} Ko · PDF
+                </div>
+              </div>
+              <button onClick={() => setPdfFichier(null)}
+                style={{ background: "none", border: "none", cursor: "pointer",
+                  color: COULEURS.doux, fontSize: 18, padding: 4, lineHeight: 1, flexShrink: 0 }}>
+                ✕
+              </button>
+            </div>
+          )}
+          <label style={{ ...S.label, marginTop: 14 }}>Titre ou description (optionnel)</label>
+          <input style={S.input} placeholder="Ex. Diplôme de Lucas, Contrat de mariage…"
+            value={texte} onChange={e => setTexte(e.target.value)} />
+          <p style={S.aide}>📄 Le document sera accessible en un clic à l'ouverture de la capsule.</p>
         </>
       )}
 
@@ -3210,7 +6224,7 @@ function genererAlbumHTML(capsule, { embarque = false } = {}) {
     const auteur = capsule.participants.find(p => p.id === c.auteurId);
     const LABELS = { message:"💬 MESSAGE", photo:"📷 PHOTO", video:"🎬 VIDÉO", vocal:"🎙 VOCAL", dessin:"🎨 DESSIN",
       secret:"🤫 SECRET", chanson:"🎵 CHANSON", meteo:"🌤 MÉTÉO", une_du_jour:"📰 UNE DU JOUR",
-      pari:"🎲 PARI", question_guidee:"💬 QUESTION" };
+      pari:"🎲 PARI", question_guidee:"💬 QUESTION", document:"📄 DOCUMENT PDF" };
     return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
       ${avatarEl(auteur, 40)}
       <div style="flex:1">
@@ -3304,6 +6318,17 @@ function genererAlbumHTML(capsule, { embarque = false } = {}) {
         <div style="padding:20px 24px">
           <div style="font-size:11px;font-weight:700;color:#9B8AA0;letter-spacing:2px;margin-bottom:10px">${esc((d.source || "").toUpperCase())}${d.date ? " · " + esc(d.date) : ""}</div>
           <div style="font-size:20px;font-weight:800;color:#2E2230;line-height:1.5">${esc(d.titre || "")}</div>
+        </div>
+      </div>`;
+
+    } else if (c.type === "document") {
+      // Carte document PDF dans l'album : icône + nom du fichier + lien cliquable
+      content = `<div style="display:flex;align-items:center;gap:20px;background:linear-gradient(135deg,#fff5f0 0%,#f5f0ff 100%);border-radius:14px;padding:22px 20px">
+        <div style="width:52px;height:64px;border-radius:10px;background:linear-gradient(135deg,#FF5C9D,#C65CE8);display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0;box-shadow:0 4px 12px rgba(255,92,157,0.35)">📄</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:16px;color:#2E2230;margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.texte || "Document PDF")}</div>
+          <div style="font-size:12px;color:#9B8AA0;margin-bottom:14px">Document partagé dans cette capsule</div>
+          ${c.media ? `<a href="${esc(c.media)}" target="_blank" style="display:inline-block;background:linear-gradient(120deg,#FF8A3D,#FF5C9D);color:#fff;text-decoration:none;padding:9px 20px;border-radius:10px;font-size:13px;font-weight:700">Ouvrir le document →</a>` : '<span style="font-size:12px;color:#9B8AA0;font-style:italic">Fichier non disponible</span>'}
         </div>
       </div>`;
 
@@ -3820,19 +6845,36 @@ function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterFavor
           <div style={{ fontSize: 52 }}>🎊</div>
           <h2 style={S.finTitre}>Vous avez tout découvert</h2>
           <p style={S.finTexte}>{souvenirs.length} souvenir{souvenirs.length > 1 ? "s" : ""} partagé{souvenirs.length > 1 ? "s" : ""} ensemble.</p>
-          {/* Étape 1 : visualiser l'album en PDF */}
-          <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
-            background: "#fff", border: "2px solid #f0ecf1", borderRadius: 18, padding: "16px 24px",
-            width: "100%", cursor: "pointer", marginTop: 8, marginBottom: 4,
-            boxShadow: "0 4px 16px rgba(46,34,48,0.07)", transition: "box-shadow 0.2s" }}
-            onClick={ouvrirAlbum}>
-            <span style={{ fontSize: 24 }}>📖</span>
-            <div style={{ textAlign: "left" }}>
-              <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 15, color: "#2E2230" }}>Visualiser l'album</div>
-              <div style={{ fontSize: 12, color: "#9B8AA0", marginTop: 2 }}>Voir tous vos souvenirs mis en page</div>
-            </div>
-            <span style={{ marginLeft: "auto", fontSize: 18, color: "#9B8AA0" }}>→</span>
-          </button>
+          {/* Étape 1 : visualiser l'album en PDF — réservé Plus */}
+          {estPlus(moi) ? (
+            <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              background: "#fff", border: "2px solid #f0ecf1", borderRadius: 18, padding: "16px 24px",
+              width: "100%", cursor: "pointer", marginTop: 8, marginBottom: 4,
+              boxShadow: "0 4px 16px rgba(46,34,48,0.07)", transition: "box-shadow 0.2s" }}
+              onClick={ouvrirAlbum}>
+              <span style={{ fontSize: 24 }}>📖</span>
+              <div style={{ textAlign: "left" }}>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 15, color: "#2E2230" }}>Visualiser l'album</div>
+                <div style={{ fontSize: 12, color: "#9B8AA0", marginTop: 2 }}>Voir tous vos souvenirs mis en page</div>
+              </div>
+              <span style={{ marginLeft: "auto", fontSize: 18, color: "#9B8AA0" }}>→</span>
+            </button>
+          ) : (
+            <button style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              background: "linear-gradient(135deg,#FF8A3D12,#FF5C9D12)", border: "2px solid #FF5C9D40",
+              borderRadius: 18, padding: "16px 24px", width: "100%", cursor: "pointer", marginTop: 8, marginBottom: 4 }}
+              onClick={() => allerVers("abonnement")}>
+              <span style={{ fontSize: 24 }}>📖</span>
+              <div style={{ textAlign: "left", flex: 1 }}>
+                <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 15,
+                  background: DEGRADE, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                  Visualiser l'album
+                </div>
+                <div style={{ fontSize: 12, color: "#FF5C9D", marginTop: 2, fontWeight: 600 }}>✨ Réservé aux abonnés Plus</div>
+              </div>
+              <span style={{ marginLeft: "auto", fontSize: 18, color: "#FF5C9D" }}>→</span>
+            </button>
+          )}
 
           {/* Étape 2 : commander l'album — affiché après visualisation */}
           {albumVisualisé && (
@@ -3917,6 +6959,34 @@ function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterFavor
           <img src={courant.media} alt="dessin" style={{ ...S.souvenirMedia, imageRendering: "pixelated" }} />
         )}
 
+        {/* Document PDF — carte avec bouton d'ouverture dans un nouvel onglet */}
+        {courant.type === "document" && courant.media && (
+          <div style={{ background: "var(--carte-bg)", borderRadius: 18, padding: 20,
+            display: "flex", alignItems: "center", gap: 16,
+            boxShadow: "0 4px 14px rgba(46,34,48,0.07)", marginBottom: 4 }}>
+            {/* Icône PDF stylisée */}
+            <div style={{ width: 52, height: 60, borderRadius: 10, background: DEGRADE,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 26, flexShrink: 0, boxShadow: "0 4px 12px rgba(255,92,157,0.4)" }}>
+              📄
+            </div>
+            <div style={{ flex: 1, overflow: "hidden" }}>
+              <div style={{ fontWeight: 700, fontSize: 15, color: COULEURS.encre, marginBottom: 4,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {courant.texte || "Document PDF"}
+              </div>
+              <div style={{ fontSize: 12, color: COULEURS.doux }}>Document partagé dans cette capsule</div>
+            </div>
+            {/* Bouton d'ouverture — ouvre le PDF dans un nouvel onglet */}
+            <a href={courant.media} target="_blank" rel="noopener noreferrer"
+              style={{ background: DEGRADE, color: "#fff", borderRadius: 12, padding: "10px 16px",
+                fontSize: 13, fontWeight: 700, textDecoration: "none", flexShrink: 0,
+                boxShadow: "0 4px 12px rgba(255,92,157,0.35)" }}>
+              Ouvrir →
+            </a>
+          </div>
+        )}
+
         {/* Texte standard (message + question guidée) avec ambiance */}
         {courant.texte && courant.type === "message" && ambiance
           ? <div style={{ ...S.souvenirMessageAmbiance, background: ambiance.fond, color: ambiance.texte }}>{courant.texte}</div>
@@ -3986,7 +7056,10 @@ function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterFavor
       ))}
       <div style={S.navOuverture}>
         <button style={{ ...S.boutonNav, ...(indexSur === 0 ? S.boutonDesactive : {}) }} disabled={indexSur === 0} onClick={() => setIndex(indexSur - 1)}>← Précédent</button>
-        <button style={S.boutonNav} onClick={() => setIndex(indexSur + 1)}>{indexSur === souvenirs.length - 1 ? "Terminer →" : "Suivant →"}</button>
+        <button style={S.boutonNav} onClick={() => {
+          if (indexSur === souvenirs.length - 1) allerVers("detail", capsule.id);
+          else setIndex(indexSur + 1);
+        }}>{indexSur === souvenirs.length - 1 ? "Terminer →" : "Suivant →"}</button>
       </div>
     </div>
     {animPhase && courant && (
@@ -3997,6 +7070,142 @@ function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterFavor
 }
 
 // ============================================================================
+// ============================================================================
+//  ANIMATION OUVERTURE MARIAGE — dorée, drôle, mémorable
+// ============================================================================
+function AnimationOuvertureMariage({ capsule, allerVers }) {
+  const [phase, setPhase]       = React.useState(1);
+  const [fondu, setFondu]       = React.useState(1);
+  const [drumRoll, setDrumRoll] = React.useState(0);
+  const [showWarn, setShowWarn] = React.useState(false);
+  const [showRings, setShowRings] = React.useState(false);
+  const [showBtn, setShowBtn]   = React.useState(false);
+  const nbInvites = capsule?.participants?.length || 0;
+
+  function passer() { allerVers("ouverture", capsule?.id); }
+  function changerPhase(n, apres) {
+    setTimeout(() => {
+      setFondu(0);
+      setTimeout(() => { setPhase(n); setFondu(1); }, 350);
+    }, apres);
+  }
+
+  React.useEffect(() => {
+    const t = [];
+    for (let i = 1; i <= 4; i++) t.push(setTimeout(() => setDrumRoll(i), 3300 + i * 450));
+    t.push(setTimeout(() => setShowWarn(true), 5200));
+    changerPhase(2, 3000);
+    changerPhase(3, 7200);
+    t.push(setTimeout(() => setShowRings(true), 7700));
+    changerPhase(4, 11200);
+    t.push(setTimeout(() => setShowBtn(true), 12800));
+    return () => t.forEach(clearTimeout);
+  }, []);
+
+  const RINGS = [
+    {left:"4%", delay:0,   size:22, dur:2.8},
+    {left:"15%",delay:.4,  size:15, dur:3.2},
+    {left:"27%",delay:.2,  size:20, dur:2.6},
+    {left:"39%",delay:.6,  size:17, dur:3.0},
+    {left:"51%",delay:.1,  size:24, dur:2.9},
+    {left:"63%",delay:.5,  size:14, dur:3.3},
+    {left:"75%",delay:.3,  size:19, dur:2.7},
+    {left:"87%",delay:.7,  size:21, dur:3.1},
+  ];
+
+  const SPARKS = [
+    {e:"✨",t:"7%", l:"5%", s:22,d:0  },{e:"💫",t:"10%",l:"83%",s:18,d:.3},
+    {e:"⭐",t:"28%",l:"3%", s:14,d:.6 },{e:"💍",t:"24%",l:"89%",s:16,d:.2},
+    {e:"✨",t:"54%",l:"4%", s:20,d:.5 },{e:"🌟",t:"60%",l:"85%",s:17,d:.1},
+    {e:"💛",t:"79%",l:"7%", s:15,d:.4 },{e:"✨",t:"74%",l:"87%",s:19,d:.7},
+  ];
+
+  const bgs = [
+    "#0D0A0B",
+    "#0D0A0B",
+    "linear-gradient(160deg,#3D0C11 0%,#831843 40%,#BE185D 70%,#C9A84C 100%)",
+    "linear-gradient(160deg,#C9A84C 0%,#F5D78E 35%,#C9A84C 65%,#831843 100%)",
+  ];
+
+  return (
+    <div style={{ position:"absolute",inset:0,background:bgs[phase-1]||"#0D0A0B",zIndex:100,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px 24px",overflow:"hidden",opacity:fondu,transition:"opacity 0.35s ease, background 0.7s ease" }}>
+      <style>{`
+        @keyframes maoBeat{0%,100%{transform:scale(1)}40%{transform:scale(1.22)}70%{transform:scale(.9)}}
+        @keyframes maoGlow{0%,100%{text-shadow:0 0 20px #C9A84C,0 0 40px rgba(201,168,76,.5)}50%{text-shadow:0 0 55px #F5D78E,0 0 95px rgba(201,168,76,.9),0 0 140px rgba(201,168,76,.3)}}
+        @keyframes maoRing{0%{transform:translateY(-60px) rotate(-20deg);opacity:0}15%{opacity:.9}100%{transform:translateY(110vh) rotate(540deg);opacity:.2}}
+        @keyframes maoPop{0%{transform:scale(0) rotate(-10deg);opacity:0}65%{transform:scale(1.14) rotate(5deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+        @keyframes maoShake{0%,100%{transform:rotate(0)translateX(0)}20%{transform:rotate(-7deg)translateX(-4px)}40%{transform:rotate(7deg)translateX(4px)}60%{transform:rotate(-4deg)translateX(-2px)}80%{transform:rotate(4deg)translateX(2px)}}
+        @keyframes maoFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+        @keyframes maoSpark{0%,100%{opacity:.2;transform:scale(.5) rotate(0deg)}50%{opacity:1;transform:scale(1.35) rotate(180deg)}}
+        @keyframes maoCrash{0%{transform:translateY(-80px) scale(1.2);opacity:0}70%{transform:translateY(5px) scale(1.02)}100%{transform:translateY(0) scale(1);opacity:1}}
+      `}</style>
+
+      <button onClick={passer} style={{ position:"absolute",top:18,right:18,background:"rgba(255,255,255,.1)",border:"none",color:"rgba(255,255,255,.6)",fontSize:11,fontWeight:600,padding:"6px 13px",borderRadius:20,cursor:"pointer",zIndex:10,letterSpacing:".04em" }}>Passer →</button>
+
+      {phase === 1 && (
+        <div style={{ textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:28 }}>
+          <div style={{ fontSize:90,lineHeight:1,animation:"maoBeat 1.1s ease-in-out infinite, maoGlow 2s ease-in-out infinite" }}>💍</div>
+          <p style={{ color:"rgba(201,168,76,.9)",fontSize:18,fontWeight:600,letterSpacing:".10em",textTransform:"uppercase",margin:0,animation:"fadeSlideUp .8s ease both",fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Le moment est arrivé</p>
+          <p style={{ color:"rgba(255,255,255,.4)",fontSize:13,margin:0,fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Vos invités vous ont préparé quelque chose…</p>
+        </div>
+      )}
+
+      {phase === 2 && (
+        <div style={{ textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:20 }}>
+          <div style={{ fontSize:60,animation:"maoShake .18s ease-in-out infinite" }}>🥁</div>
+          <div style={{ color:"#fff",fontSize:20,fontWeight:700,fontFamily:"'Bricolage Grotesque',sans-serif" }}>
+            Roulement de tambour{"·".repeat(drumRoll)}
+          </div>
+          {showWarn && (
+            <div style={{ background:"linear-gradient(135deg,rgba(201,168,76,.12),rgba(61,12,17,.3))",border:"2px solid #C9A84C",borderRadius:18,padding:"16px 20px",maxWidth:290,animation:"maoCrash .5s cubic-bezier(.34,1.56,.64,1) both" }}>
+              <div style={{ fontSize:13,fontWeight:800,color:"#C9A84C",letterSpacing:".12em",marginBottom:8 }}>⚠️ AVERTISSEMENT ⚠️</div>
+              <div style={{ color:"#fff",fontSize:15,fontWeight:700,lineHeight:1.55,marginBottom:8 }}>
+                Vos invités se sont <em style={{ color:"#F5D78E" }}>vraiment</em> lâchés 🫣
+              </div>
+              <div style={{ color:"rgba(255,255,255,.5)",fontSize:11,lineHeight:1.5 }}>
+                Préparez-vous à rire, pleurer, et tout ça<br/>en même temps. Vous êtes prévenus. 😅
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {phase === 3 && (
+        <>
+          {showRings && RINGS.map((r, i) => (
+            <div key={i} style={{ position:"absolute",top:"-30px",left:r.left,fontSize:r.size,animation:`maoRing ${r.dur}s ${r.delay}s linear infinite`,pointerEvents:"none",zIndex:1 }}>💍</div>
+          ))}
+          <div style={{ textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:20,position:"relative",zIndex:2 }}>
+            <div style={{ fontSize:70,animation:"maoFloat 2.4s ease-in-out infinite" }}>💒</div>
+            <h2 style={{ fontFamily:"'Bricolage Grotesque',sans-serif",color:"#fff",fontSize:26,fontWeight:800,margin:0,textShadow:"0 2px 16px rgba(0,0,0,.4)",animation:"fadeSlideUp .5s ease both",letterSpacing:"-.02em" }}>{capsule?.nom || "Capsule Mariage"}</h2>
+            <p style={{ color:"rgba(255,255,255,.85)",fontSize:15,margin:0,lineHeight:1.6,animation:"fadeSlideUp .5s .15s ease both",fontFamily:"'Plus Jakarta Sans',sans-serif" }}>
+              <strong>{nbInvites}</strong> invité{nbInvites > 1 ? "s ont" : " a"} déposé leurs<br/>plus beaux souvenirs pour vous 💛
+            </p>
+          </div>
+        </>
+      )}
+
+      {phase === 4 && (
+        <>
+          {SPARKS.map((sp, i) => (
+            <div key={i} style={{ position:"absolute",top:sp.t,left:sp.l,fontSize:sp.s,animation:`maoSpark 1.8s ${sp.d}s ease-in-out infinite`,pointerEvents:"none",zIndex:1 }}>{sp.e}</div>
+          ))}
+          <div style={{ textAlign:"center",display:"flex",flexDirection:"column",alignItems:"center",gap:22,position:"relative",zIndex:2 }}>
+            <div style={{ display:"flex",gap:10,fontSize:56,animation:"maoPop .7s cubic-bezier(.34,1.56,.64,1) both" }}>🥂🥂</div>
+            <p style={{ fontFamily:"'Plus Jakarta Sans',sans-serif",color:"#3D0C11",fontSize:11,fontWeight:800,letterSpacing:".18em",textTransform:"uppercase",margin:0,animation:"fadeSlideUp .5s .1s ease both",opacity:.8 }}>Bienvenue dans votre capsule</p>
+            <h1 style={{ fontFamily:"'Bricolage Grotesque',sans-serif",color:"#3D0C11",fontSize:36,fontWeight:900,margin:0,letterSpacing:"-.03em",textShadow:"0 2px 12px rgba(255,255,255,.4)",animation:"fadeSlideUp .5s .2s ease both" }}>C'est parti ! 💍</h1>
+            {showBtn && (
+              <button onClick={passer} style={{ background:"#3D0C11",color:"#F5D78E",border:"2px solid #C9A84C",fontSize:16,fontWeight:700,padding:"15px 32px",borderRadius:24,cursor:"pointer",boxShadow:"0 8px 32px rgba(61,12,17,.45)",animation:"maoPop .5s cubic-bezier(.34,1.56,.64,1) both",fontFamily:"'Plus Jakarta Sans',sans-serif",letterSpacing:".01em" }}>
+                Découvrir les souvenirs 💍
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 //  ANIMATION D'OUVERTURE SPECTACULAIRE — 4 phases, première ouverture seulement
 // ============================================================================
 function AnimationOuverture({ capsule, allerVers }) {
@@ -4187,13 +7396,2489 @@ function AnimationOuverture({ capsule, allerVers }) {
 // ============================================================================
 //  6. ÉCRAN DE CONNEXION — inscription + connexion par email + mot de passe
 // ============================================================================
+// ============================================================================
+//  PAYWALL MODAL — overlay affiché quand une limite de plan est atteinte.
+//  Apparaît en position absolute dans le cadre téléphone.
+// ============================================================================
+// ============================================================================
+//  MODALE PAYWALL — feuille iOS depuis le bas. Utilise getPaywallContent.
+//  Appelée avec type={paywallType} où paywallType est une clé de getPaywallContent.
+// ============================================================================
+function ModalPaywall({ type, moi, allerVers, onFermer }) {
+  const raison  = typeof type === "string" ? type : (type?.raison ?? "capsule_limite_gratuit");
+  const options = typeof type === "object" ? type : {};
+  const contenu = getPaywallContent(raison, options);
+
+  return (
+    <div style={{
+      position: "absolute", inset: 0, zIndex: 400,
+      background: "rgba(46,34,48,0.85)", backdropFilter: "blur(6px)",
+      display: "flex", alignItems: "flex-end",
+      animation: "fadeSlideUp 0.3s ease both",
+    }} onClick={onFermer}>
+      <div style={{
+        background: "var(--carte-bg)", borderRadius: "28px 28px 20px 20px",
+        padding: "28px 22px 24px", width: "100%",
+        boxShadow: "0 -10px 40px rgba(46,34,48,0.25)",
+      }} onClick={e => e.stopPropagation()}>
+
+        {/* Titre + texte */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800, fontSize: 19, color: COULEURS.encre, lineHeight: 1.25 }}>
+            {contenu.titre}
+          </div>
+          <p style={{ fontSize: 13, color: COULEURS.doux, marginTop: 10, lineHeight: 1.6, margin: "10px 0 0" }}>
+            {contenu.texte}
+          </p>
+        </div>
+
+        {/* CTA principal */}
+        {contenu.cta && (
+          <button onClick={() => { onFermer(); allerVers("creer"); }}
+            style={{ ...S.boutonPrincipal, marginTop: 4 }}>
+            {contenu.cta}
+          </button>
+        )}
+
+        {/* CTA secondaire (packs naissance/papy) */}
+        {contenu.ctaSecondaire && (
+          <button onClick={() => { onFermer(); allerVers("creer"); }}
+            style={{ ...S.boutonSecondaire, marginTop: 10 }}>
+            {contenu.ctaSecondaire}
+          </button>
+        )}
+
+        {/* Ligne de réassurance */}
+        <p style={{ fontSize: 11, color: COULEURS.doux, textAlign: "center", margin: "12px 0 0", lineHeight: 1.5 }}>
+          🔐 Stripe · 🇪🇺 Europe · Annulation à tout moment
+        </p>
+
+        {/* Fermer */}
+        <button onClick={onFermer}
+          style={{ display: "block", width: "100%", background: "none", border: "none", color: COULEURS.doux,
+            fontSize: 13, cursor: "pointer", marginTop: 10,
+            fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          Pas maintenant
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN SENIOR — interface ultra-simplifiée pour les bénéficiaires d'un Pack
+//  Mamie/Papy. Grands visuels, bouton unique "Découvrir", réactions émoji.
+// ============================================================================
+function EcranSenior({ capsule, moi, allerVers, reagir }) {
+  const contributions = (capsule?.contributions || []).filter(c => !c.secret);
+  const derniere = contributions[contributions.length - 1];
+
+  function partagerSMS() {
+    const lien = `https://blooom.app/c/${capsule?.code}`;
+    if (navigator.share) {
+      navigator.share({ title: capsule?.nom, url: lien }).catch(() => {});
+    } else {
+      window.open(`sms:?&body=Regarde notre capsule de souvenirs : ${lien}`);
+    }
+  }
+
+  return (
+    <div style={{ ...S.ecran, alignItems: "center", justifyContent: "center", textAlign: "center", padding: "32px 24px" }}>
+      {/* Titre capsule */}
+      <div style={{ fontSize: 28, fontWeight: 900, fontFamily: "'Bricolage Grotesque', sans-serif",
+        color: COULEURS.encre, marginBottom: 8, lineHeight: 1.2 }}>
+        {capsule?.nom || "Nos souvenirs"}
+      </div>
+      <p style={{ fontSize: 16, color: COULEURS.doux, marginBottom: 32 }}>
+        {contributions.length} souvenir{contributions.length !== 1 ? "s" : ""} vous attendent 💛
+      </p>
+
+      {/* Aperçu du dernier souvenir */}
+      {derniere && (
+        <div style={{ background: "var(--carte-bg)", borderRadius: 24, padding: 20, marginBottom: 24, width: "100%",
+          boxShadow: "0 6px 24px rgba(46,34,48,0.10)" }}>
+          {derniere.type === "photo" && derniere.contenu && (
+            <img src={derniere.contenu} alt="" style={{ width: "100%", borderRadius: 16, maxHeight: 200, objectFit: "cover" }} />
+          )}
+          {derniere.type === "message" && (
+            <p style={{ fontSize: 17, color: COULEURS.encre, lineHeight: 1.6, margin: 0 }}>"{derniere.contenu}"</p>
+          )}
+          <div style={{ fontSize: 13, color: COULEURS.doux, marginTop: 10 }}>— {derniere.auteurPrenom || "Quelqu'un"}</div>
+        </div>
+      )}
+
+      {/* Réactions */}
+      <div style={{ display: "flex", gap: 16, justifyContent: "center", marginBottom: 32 }}>
+        {["🥹", "😂", "💛"].map(emoji => (
+          <button key={emoji} onClick={() => derniere && reagir && reagir(capsule.id, derniere.id, emoji)}
+            style={{ fontSize: 36, background: "none", border: "none", cursor: "pointer", lineHeight: 1 }}>
+            {emoji}
+          </button>
+        ))}
+      </div>
+
+      {/* Bouton principal — grand, centré */}
+      <button onClick={() => allerVers("ouverture", capsule?.id)}
+        style={{ ...S.boutonPrincipal, fontSize: 18, padding: "18px 0", borderRadius: 20, marginBottom: 16 }}>
+        Découvrir tous les souvenirs
+      </button>
+
+      {/* Partage SMS */}
+      <button onClick={partagerSMS}
+        style={{ background: "none", border: `1px solid ${COULEURS.bordure}`, borderRadius: 14, padding: "12px 24px",
+          fontSize: 15, color: COULEURS.doux, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        📱 Partager par SMS
+      </button>
+    </div>
+  );
+}
+
+// EcranAbonnement redirige vers EcranCreer (nouveau modèle : packs à l'acte, pas d'abonnement général)
+function EcranAbonnement({ moi, allerVers }) {
+  React.useEffect(() => { allerVers("creer"); }, []);
+  return null;
+}
+
+// EcranOffrir — remplacé par EcranCreer dans le nouveau modèle économique
+function EcranOffrir({ moi, allerVers }) {
+  React.useEffect(() => { allerVers("creer"); }, []);
+  return null;
+}
+
+function _EcranAbonnementLegacy({ moi, allerVers }) {
+  // Lance une session Stripe Checkout via la Edge Function Supabase
+  async function lancerCheckout(planId) {
+    setChargement(true);
+    try {
+      const baseUrl = window.location.origin;
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: {
+          plan_id:     planId,
+          user_id:     moi?.id,
+          success_url: `${baseUrl}?checkout=success`,
+          cancel_url:  `${baseUrl}?checkout=cancelled`,
+        },
+      });
+      if (error || !data?.url) throw new Error(error?.message || "Redirection impossible");
+      // Redirige vers la page de paiement Stripe hébergée
+      window.location.href = data.url;
+    } catch (e) {
+      alert("Impossible d'accéder au paiement : " + e.message);
+      setChargement(false);
+    }
+  }
+
+  // Ouvre le Stripe Customer Portal pour gérer l'abonnement (résiliation, CB…)
+  async function ouvrirPortal() {
+    setChargement(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("create-portal-session", {
+        body: { user_id: moi?.id, return_url: window.location.origin },
+      });
+      if (error || !data?.url) throw new Error(error?.message || "Portail indisponible");
+      window.location.href = data.url;
+    } catch (e) {
+      alert("Erreur portail : " + e.message);
+      setChargement(false);
+    }
+  }
+
+  // Identifiants Stripe selon la période sélectionnée
+  const PLANS = {
+    plus:   { id: periode === "mensuel" ? "plus_monthly"   : "plus_yearly"   },
+    rituel: { id: periode === "mensuel" ? "rituel_monthly" : "rituel_yearly" },
+  };
+
+  return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="Abonnement" onRetour={() => allerVers("profil")} />
+
+      {/* En-tête émotionnelle avec cercles animés */}
+      <div style={{ textAlign: "center", padding: "4px 0 18px" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 7, marginBottom: 14 }}>
+          {[0, 1, 2].map(i => (
+            <div key={i} style={{
+              width: 11, height: 11, borderRadius: "50%", background: DEGRADE,
+              animation: `pulseCercle 1.6s ${i * 0.27}s ease-in-out infinite`,
+            }} />
+          ))}
+        </div>
+        <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+          fontSize: 20, color: COULEURS.encre, margin: "0 0 8px", lineHeight: 1.3 }}>
+          Des souvenirs qui durent.<br />Un prix qui ne fait pas mal.
+        </h2>
+        <p style={{ fontSize: 12, color: COULEURS.doux, margin: 0 }}>
+          Annulez à tout moment. Vos souvenirs restent pour toujours.
+        </p>
+      </div>
+
+      {/* Toggle mensuel / annuel */}
+      <div style={{ display: "flex", background: "#f0ece6", borderRadius: 999,
+        padding: 4, marginBottom: 20, gap: 4 }}>
+        {[
+          { id: "mensuel", label: "Mensuel" },
+          { id: "annuel",  label: <>Annuel <span style={{ background: "#22C7B8", color: "#fff",
+            fontSize: 10, fontWeight: 800, borderRadius: 999, padding: "1px 6px", marginLeft: 4 }}>
+            −30%</span></> },
+        ].map(p => (
+          <button key={p.id} onClick={() => setPeriode(p.id)}
+            style={{ flex: 1, padding: "8px 0", borderRadius: 999, border: "none", cursor: "pointer",
+              background: periode === p.id ? "#fff" : "transparent",
+              fontWeight: 700, fontSize: 13, color: periode === p.id ? COULEURS.encre : COULEURS.doux,
+              boxShadow: periode === p.id ? "0 2px 8px rgba(46,34,48,0.12)" : "none",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              transition: "all 0.18s" }}>
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Trois cartes côte à côte avec défilement horizontal ── */}
+      <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 8,
+        scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch", marginBottom: 4 }}>
+
+        {/* Carte Gratuit */}
+        <div style={{ minWidth: 148, flex: "0 0 148px", scrollSnapAlign: "start",
+          background: "var(--carte-bg)", borderRadius: 20, padding: "18px 13px",
+          border: plan === "gratuit" ? `2px solid ${COULEURS.corail}` : `1px solid ${COULEURS.bordure}`,
+          boxShadow: "0 4px 14px rgba(46,34,48,0.07)", position: "relative" }}>
+          {plan === "gratuit" && (
+            <span style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)",
+              background: COULEURS.corail, color: "#fff", fontSize: 9, fontWeight: 800,
+              padding: "2px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>✓ VOTRE PLAN</span>
+          )}
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+            fontSize: 17, color: COULEURS.encre, marginBottom: 6 }}>Gratuit</div>
+          <div style={{ fontSize: 24, fontWeight: 800, color: COULEURS.encre, marginBottom: 14 }}>0€</div>
+          {["1 capsule active", "5 participants", "500 Mo", "Tous les types de souvenirs"].map((f, i) => (
+            <div key={i} style={{ fontSize: 11, color: COULEURS.doux, marginBottom: 5,
+              display: "flex", gap: 5, alignItems: "flex-start", lineHeight: 1.35 }}>
+              <span style={{ flexShrink: 0 }}>·</span>{f}
+            </div>
+          ))}
+          <button disabled style={{ width: "100%", marginTop: 14, padding: "10px 0",
+            background: "transparent", color: COULEURS.doux,
+            border: `1px solid ${COULEURS.bordure}`, borderRadius: 12,
+            fontSize: 12, fontWeight: 700, cursor: "default",
+            fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {plan === "gratuit" ? "Votre plan" : "Gratuit"}
+          </button>
+        </div>
+
+        {/* Carte Plus ✨ — mise en avant avec dégradé */}
+        <div style={{ minWidth: 158, flex: "0 0 158px", scrollSnapAlign: "start",
+          background: DEGRADE, borderRadius: 20, padding: "18px 13px",
+          boxShadow: "0 12px 32px rgba(255,92,157,0.45)", position: "relative" }}>
+          <span style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)",
+            background: "#fff", color: COULEURS.corail, fontSize: 9, fontWeight: 800,
+            padding: "2px 10px", borderRadius: 999, whiteSpace: "nowrap",
+            boxShadow: "0 2px 8px rgba(255,92,157,0.25)" }}>LE PLUS POPULAIRE 🎁</span>
+          {(plan === "plus" || plan === "plus_cadeau") && (
+            <span style={{ position: "absolute", top: -9, right: 10,
+              background: "rgba(255,255,255,0.3)", color: "#fff", fontSize: 9, fontWeight: 800,
+              padding: "2px 8px", borderRadius: 999 }}>✓ ACTIF</span>
+          )}
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+            fontSize: 17, color: "#fff", marginBottom: 4 }}>Plus ✨</div>
+          {/* Prix selon la période */}
+          <div style={{ fontSize: 22, fontWeight: 800, color: "#fff" }}>
+            {periode === "mensuel" ? "2,99€" : "24,99€"}
+          </div>
+          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.8)", marginBottom: 12 }}>
+            {periode === "mensuel" ? "/mois" : "/an · soit 2,08€/mois"}
+          </div>
+          {[
+            "3 capsules actives",
+            "Participants illimités",
+            "10 Go de stockage",
+            "Tous types de souvenirs",
+            "Packs Weekend, Voyage, Soirée inclus",
+            "Animations premium",
+            "Export PDF",
+          ].map((f, i) => (
+            <div key={i} style={{ fontSize: 11, color: "rgba(255,255,255,0.92)", marginBottom: 5,
+              display: "flex", gap: 5, alignItems: "flex-start", lineHeight: 1.35 }}>
+              <span style={{ flexShrink: 0 }}>✓</span>{f}
+            </div>
+          ))}
+          {!estPlus(moi) && (
+            <button onClick={() => lancerCheckout(PLANS.plus.id)} disabled={chargement}
+              style={{ width: "100%", marginTop: 14, padding: "10px 0",
+                background: "rgba(255,255,255,0.22)", color: "#fff",
+                border: "2px solid rgba(255,255,255,0.45)", borderRadius: 12,
+                fontSize: 12, fontWeight: 700, cursor: chargement ? "wait" : "pointer",
+                fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: chargement ? 0.6 : 1 }}>
+              {chargement ? "…" : "Commencer avec Plus"}
+            </button>
+          )}
+        </div>
+
+        {/* Carte Rituel 🌟 */}
+        <div style={{ minWidth: 148, flex: "0 0 148px", scrollSnapAlign: "start",
+          background: "var(--carte-bg)", borderRadius: 20, padding: "18px 13px",
+          border: (plan === "rituel" || plan === "rituel_cadeau") ? "2px solid #C65CE8" : `1px solid ${COULEURS.bordure}`,
+          boxShadow: "0 4px 14px rgba(46,34,48,0.07)", position: "relative" }}>
+          {(plan === "rituel" || plan === "rituel_cadeau") && (
+            <span style={{ position: "absolute", top: -9, left: "50%", transform: "translateX(-50%)",
+              background: "#C65CE8", color: "#fff", fontSize: 9, fontWeight: 800,
+              padding: "2px 10px", borderRadius: 999, whiteSpace: "nowrap" }}>✓ VOTRE PLAN</span>
+          )}
+          <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+            fontSize: 17, color: COULEURS.encre, marginBottom: 4 }}>Rituel 🌟</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: COULEURS.encre }}>
+            {periode === "mensuel" ? "4,99€" : "49,99€"}
+          </div>
+          <div style={{ fontSize: 11, color: COULEURS.doux, marginBottom: 12 }}>
+            {periode === "mensuel" ? "/mois" : "/an · soit 4,16€/mois"}
+          </div>
+          {[
+            "Tout Blooom Plus",
+            "Capsules illimitées",
+            "50 Go de stockage",
+            "Pack Mamie/Papy inclus",
+            "1 album papier/an offert",
+            "Capsule surprise trim.",
+          ].map((f, i) => (
+            <div key={i} style={{ fontSize: 11, color: COULEURS.doux, marginBottom: 5,
+              display: "flex", gap: 5, alignItems: "flex-start", lineHeight: 1.35 }}>
+              <span style={{ color: "#C65CE8", flexShrink: 0 }}>✓</span>{f}
+            </div>
+          ))}
+          {!estRituel(moi) && (
+            <button onClick={() => lancerCheckout(PLANS.rituel.id)} disabled={chargement}
+              style={{ width: "100%", marginTop: 14, padding: "10px 0",
+                background: "linear-gradient(120deg,#C65CE8,#9B5DE5)", color: "#fff",
+                border: "none", borderRadius: 12,
+                fontSize: 12, fontWeight: 700, cursor: chargement ? "wait" : "pointer",
+                fontFamily: "'Plus Jakarta Sans', sans-serif", opacity: chargement ? 0.6 : 1 }}>
+              {chargement ? "…" : "Choisir Rituel"}
+            </button>
+          )}
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: COULEURS.doux, textAlign: "center", marginBottom: 20 }}>
+        ← Faites glisser pour comparer →
+      </p>
+
+      {/* Bouton Gérer l'abonnement — uniquement si déjà abonné */}
+      {estPlus(moi) && (
+        <button onClick={ouvrirPortal} disabled={chargement}
+          style={{ ...S.boutonSecondaire, fontSize: 13 }}>
+          {chargement ? "Chargement…" : "⚙️ Gérer mon abonnement"}
+        </button>
+      )}
+
+      {/* ── Packs à l'unité ── */}
+      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+        fontSize: 16, margin: "24px 0 8px" }}>Packs à l'unité</div>
+      <p style={{ ...S.aide, marginBottom: 12 }}>
+        Sans abonnement — débloque tout pour une capsule. Inclus dans Plus et Rituel.
+      </p>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 24 }}>
+        {PACKS_INFO.map(pack => (
+          <button key={pack.id}
+            onClick={() => estPlus(moi)
+              ? alert("Ce pack est déjà inclus dans votre abonnement 🎉")
+              : lancerCheckout(pack.id)}
+            style={{ background: "var(--carte-bg)", border: `1px solid ${COULEURS.bordure}`,
+              borderRadius: 16, padding: "14px 12px", cursor: "pointer", textAlign: "left",
+              boxShadow: "0 3px 10px rgba(46,34,48,0.06)",
+              fontFamily: "'Plus Jakarta Sans', sans-serif", position: "relative" }}>
+            {estPlus(moi) && (
+              <span style={{ position: "absolute", top: 7, right: 9, fontSize: 9,
+                fontWeight: 800, color: COULEURS.corail }}>INCLUS</span>
+            )}
+            <div style={{ fontSize: 24, marginBottom: 6 }}>{pack.icone}</div>
+            <div style={{ fontWeight: 700, fontSize: 13, color: COULEURS.encre, marginBottom: 4 }}>{pack.nom}</div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: COULEURS.corail }}>{pack.prix}€</div>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Section Offrir Blooom ── */}
+      <div style={{ background: "linear-gradient(135deg,#FF8A3D12,#FF5C9D12)",
+        border: `1px solid ${COULEURS.corail}28`, borderRadius: 20, padding: "18px 16px", marginBottom: 14 }}>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+          fontSize: 16, color: COULEURS.encre, marginBottom: 8 }}>🎁 Offrir Blooom</div>
+        <p style={{ ...S.aide, marginBottom: 12 }}>
+          Le destinataire reçoit un code par email. Aucun abonnement automatique — il active quand il veut.
+        </p>
+        <button onClick={() => allerVers("offrir")}
+          style={{ ...S.boutonPrincipal, marginTop: 0, fontSize: 14 }}>
+          Offrir un abonnement →
+        </button>
+      </div>
+
+      {/* Lien code cadeau */}
+      <button onClick={() => allerVers("activer_code")}
+        style={{ display: "block", width: "100%", background: "none", border: "none",
+          color: COULEURS.doux, fontSize: 13, cursor: "pointer", textDecoration: "underline",
+          padding: "4px 0", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        J'ai un code cadeau à activer
+      </button>
+
+      <p style={{ ...S.aide, textAlign: "center", marginTop: 16 }}>
+        🔒 Paiement sécurisé via Stripe · Sans engagement pour les abonnements mensuels
+      </p>
+    </div>
+  );
+}
+
+// _EcranOffrirLegacy — conservé pour référence, non utilisé
+function _EcranOffrirLegacy({ moi, allerVers }) {
+  const [prenom, setPrenom]       = useState("");
+  const [email, setEmail]         = useState("");
+  const [offreId, setOffreId]     = useState(null);
+  const [chargement, setChargement] = useState(false);
+
+  const OFFRES = [
+    { id: "cadeau_plus_6m",    label: "6 mois Blooom Plus",   prix: 14.99, icone: "✨" },
+    { id: "cadeau_plus_1an",   label: "1 an Blooom Plus",     prix: 24.99, icone: "✨" },
+    { id: "cadeau_rituel_1an", label: "1 an Blooom Rituel",   prix: 49.99, icone: "🌟" },
+  ];
+
+  const peutOffrir = prenom.trim() && email.trim() && offreId;
+
+  // Lance le paiement Stripe avec les informations du destinataire
+  async function offrir() {
+    if (!peutOffrir) return;
+    setChargement(true);
+    try {
+      const baseUrl = window.location.origin;
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: {
+          plan_id:     offreId,
+          user_id:     moi?.id,
+          success_url: `${baseUrl}?checkout=gift_success`,
+          cancel_url:  `${baseUrl}?checkout=cancelled`,
+          destinataire: { prenom: prenom.trim(), email: email.trim() },
+        },
+      });
+      if (error || !data?.url) throw new Error(error?.message || "Erreur lors de la redirection");
+      window.location.href = data.url;
+    } catch (e) {
+      alert("Erreur : " + e.message);
+      setChargement(false);
+    }
+  }
+
+  return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="Offrir Blooom 🎁" onRetour={() => allerVers("abonnement")} />
+
+      <p style={{ ...S.aide, marginBottom: 20 }}>
+        Le destinataire reçoit un email avec son code d'activation. Il l'active quand il veut — aucun abonnement automatique.
+      </p>
+
+      {/* Sélection de l'offre */}
+      <label style={S.label}>Choisissez l'offre</label>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+        {OFFRES.map(offre => (
+          <button key={offre.id} onClick={() => setOffreId(offre.id)}
+            style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+              background: offreId === offre.id ? "linear-gradient(120deg,#FF8A3D12,#FF5C9D12)" : "var(--carte-bg)",
+              border: offreId === offre.id ? `2px solid ${COULEURS.corail}` : `1px solid ${COULEURS.bordure}`,
+              borderRadius: 16, padding: "14px 16px", cursor: "pointer",
+              fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 22 }}>{offre.icone}</span>
+              <span style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre }}>{offre.label}</span>
+            </div>
+            <span style={{ fontWeight: 800, fontSize: 16, color: COULEURS.corail }}>{offre.prix}€</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Informations du destinataire */}
+      <label style={S.label}>Prénom du destinataire</label>
+      <input style={S.input} placeholder="Ex. Marie" value={prenom}
+        onChange={e => setPrenom(e.target.value)} />
+
+      <label style={S.label}>Email du destinataire</label>
+      <input style={S.input} placeholder="marie@exemple.fr" type="email" value={email}
+        onChange={e => setEmail(e.target.value)} />
+
+      <button
+        onClick={offrir}
+        disabled={!peutOffrir || chargement}
+        style={{ ...S.boutonPrincipal, ...(!peutOffrir || chargement ? S.boutonDesactive : {}) }}>
+        {chargement ? "Redirection…" : "🎁 Offrir maintenant"}
+      </button>
+
+      <p style={{ ...S.aide, textAlign: "center", marginTop: 12 }}>
+        🔒 Paiement sécurisé via Stripe
+      </p>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN ACTIVER UN CODE CADEAU — saisie et validation d'un code d'activation.
+// ============================================================================
+function EcranActiverCode({ moi, allerVers, onCodeActive }) {
+  const [code, setCode]           = useState("");
+  const [chargement, setChargement] = useState(false);
+  // null = pas encore tenté | "success" | message d'erreur string
+  const [resultat, setResultat]   = useState(null);
+
+  async function activer() {
+    if (!code.trim()) return;
+    setChargement(true);
+    setResultat(null);
+    try {
+      // Appelle la fonction SQL SECURITY DEFINER qui vérifie et active le code
+      const { data, error } = await supabase.rpc("activer_code_cadeau", {
+        p_code:    code.trim().toUpperCase(),
+        p_user_id: moi?.id,
+      });
+      if (error) throw error;
+      if (data?.success) {
+        setResultat("success");
+        // Recharge les données du profil pour refléter le nouveau plan
+        onCodeActive && onCodeActive();
+      } else {
+        setResultat(data?.message || "Code invalide ou déjà utilisé.");
+      }
+    } catch (e) {
+      setResultat("Erreur : " + e.message);
+    } finally {
+      setChargement(false);
+    }
+  }
+
+  return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="Code cadeau" onRetour={() => allerVers("abonnement")} />
+
+      {resultat === "success" ? (
+        /* Confirmation d'activation */
+        <div style={{ textAlign: "center", padding: "32px 0" }}>
+          <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
+          <h2 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+            fontSize: 22, color: COULEURS.encre, marginBottom: 12 }}>Code activé !</h2>
+          <p style={{ fontSize: 14, color: COULEURS.doux, marginBottom: 24, lineHeight: 1.5 }}>
+            Votre abonnement a bien été mis à jour. Profitez de Blooom !
+          </p>
+          <button onClick={() => allerVers("profil")} style={S.boutonPrincipal}>
+            Voir mon profil →
+          </button>
+        </div>
+      ) : (
+        <>
+          <p style={{ ...S.aide, marginBottom: 20 }}>
+            Entrez le code à 10 caractères reçu par email pour activer votre abonnement cadeau.
+          </p>
+
+          <label style={S.label}>Votre code cadeau</label>
+          <input
+            style={{ ...S.input, textTransform: "uppercase", letterSpacing: 3,
+              fontSize: 18, fontWeight: 700, textAlign: "center" }}
+            placeholder="XXXXXXXXXXXX"
+            value={code}
+            onChange={e => { setCode(e.target.value.toUpperCase()); setResultat(null); }}
+            maxLength={12}
+          />
+
+          {/* Message d'erreur si code invalide */}
+          {resultat && resultat !== "success" && (
+            <p style={{ color: "#C62828", fontSize: 13, fontWeight: 600, marginTop: 8, textAlign: "center" }}>
+              ⚠️ {resultat}
+            </p>
+          )}
+
+          <button
+            onClick={activer}
+            disabled={!code.trim() || chargement}
+            style={{ ...S.boutonPrincipal, ...(!code.trim() || chargement ? S.boutonDesactive : {}) }}>
+            {chargement ? "Vérification…" : "Activer le code"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+//  BANNIÈRE COOKIES — affichée une seule fois à la première visite.
+//  Blooom n'utilisant que des cookies essentiels, le seul besoin est
+//  d'informer l'utilisateur, pas de recueillir un consentement granulaire.
+// ============================================================================
+function BanniereCookies() {
+  // Initialisation depuis localStorage : si déjà acceptée, on n'affiche rien
+  const [visible, setVisible] = useState(() => {
+    try { return !localStorage.getItem("blooom_cookies"); } catch { return true; }
+  });
+
+  if (!visible) return null;
+
+  function accepter() {
+    try { localStorage.setItem("blooom_cookies", "1"); } catch {}
+    setVisible(false);
+  }
+
+  return (
+    <div style={{
+      position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 500,
+      background: "rgba(46,34,48,0.95)", backdropFilter: "blur(10px)",
+      padding: "14px 16px 18px",
+      display: "flex", alignItems: "center", gap: 12,
+      animation: "fadeSlideUp 0.4s cubic-bezier(0.34,1.56,0.64,1) both",
+    }}>
+      <p style={{ flex: 1, color: "#fff", fontSize: 12, margin: 0, lineHeight: 1.5 }}>
+        <span style={{ fontWeight: 700 }}>🍪 Cookies essentiels uniquement.</span>{" "}
+        Blooom n'utilise aucun cookie publicitaire ni de tracking.
+      </p>
+      <button onClick={accepter} style={{
+        background: DEGRADE, color: "#fff", border: "none", borderRadius: 12,
+        padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+        flexShrink: 0, fontFamily: "'Plus Jakarta Sans', sans-serif",
+      }}>
+        Compris
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN CONFIDENTIALITÉ — engagements vie privée en langage clair +
+//  suppression de compte en deux étapes avec confirmation par email.
+// ============================================================================
+function EcranConfidentialite({ allerVers, session, onSupprimerCompte }) {
+  // 0 = affichage normal ; 1 = alerte irréversible ; 2 = saisie email ; 3 = en cours
+  const [etape, setEtape] = useState(0);
+  const [emailSaisi, setEmailSaisi] = useState("");
+  const [erreur, setErreur] = useState("");
+
+  // Liste des engagements affichés sous forme de cartes
+  const ENGAGEMENTS = [
+    {
+      icone: "🔒",
+      titre: "Vos souvenirs sont privés",
+      texte: "Toutes vos données sont chiffrées en transit (TLS 1.3) et au repos (AES-256). Seuls vous et vos invités peuvent y accéder.",
+    },
+    {
+      icone: "🇩🇪",
+      titre: "Hébergé en Europe",
+      texte: "Nos serveurs sont à Francfort, Allemagne. Vos données ne quittent jamais l'Union européenne.",
+    },
+    {
+      icone: "🚫",
+      titre: "Zéro publicité",
+      texte: "Blooom ne diffuse aucune publicité, maintenant ni jamais. C'est inscrit dans nos conditions générales.",
+    },
+    {
+      icone: "🤝",
+      titre: "Zéro revente de données",
+      texte: "Vos données personnelles ne sont jamais vendues, louées ni partagées à des fins commerciales.",
+    },
+    {
+      icone: "🍪",
+      titre: "Cookies essentiels uniquement",
+      texte: "Blooom n'utilise que les cookies nécessaires au fonctionnement de l'app. Aucun cookie publicitaire ni de tracking.",
+    },
+  ];
+
+  // Lance la suppression définitive après vérification de l'email
+  async function supprimerDefinitivement() {
+    if (emailSaisi.trim().toLowerCase() !== session?.user?.email?.toLowerCase()) {
+      setErreur("L'email saisi ne correspond pas à votre compte.");
+      return;
+    }
+    setEtape(3);
+    setErreur("");
+    try {
+      await onSupprimerCompte();
+    } catch (e) {
+      setEtape(2);
+      setErreur("Erreur lors de la suppression : " + e.message);
+    }
+  }
+
+  return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="Confidentialité & sécurité" onRetour={() => allerVers("profil")} />
+
+      <p style={{ fontSize: 14, color: COULEURS.doux, lineHeight: 1.6, marginBottom: 20 }}>
+        Chez Blooom, vos souvenirs vous appartiennent. Voici nos engagements, sans jargon juridique.
+      </p>
+
+      {/* Cartes d'engagements */}
+      {ENGAGEMENTS.map((eng, i) => (
+        <div key={i} style={{
+          display: "flex", gap: 14, alignItems: "flex-start",
+          background: "var(--carte-bg)", borderRadius: 18, padding: 16,
+          marginBottom: 10, boxShadow: "0 4px 14px rgba(46,34,48,0.06)",
+        }}>
+          <div style={{
+            fontSize: 20, width: 42, height: 42, borderRadius: 12,
+            background: "var(--profond-bg)", display: "flex", alignItems: "center",
+            justifyContent: "center", flexShrink: 0,
+          }}>
+            {eng.icone}
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre, marginBottom: 4 }}>
+              {eng.titre}
+            </div>
+            <div style={{ fontSize: 13, color: COULEURS.doux, lineHeight: 1.5 }}>
+              {eng.texte}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Lien vers le rapport de transparence sur le site web */}
+      <a
+        href="https://blooom.app/confidentialite"
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ display: "block", textAlign: "center", marginTop: 10, marginBottom: 4,
+          color: COULEURS.corail, fontSize: 13, fontWeight: 700, textDecoration: "none" }}
+      >
+        📋 Rapport de transparence →
+      </a>
+      <p style={{ textAlign: "center", fontSize: 11, color: COULEURS.doux, marginBottom: 28 }}>
+        Dernière mise à jour : 31 mai 2026
+      </p>
+
+      {/* ── Suppression de compte — étape 0 : bouton discret ── */}
+      {etape === 0 && (
+        <button
+          onClick={() => setEtape(1)}
+          style={{
+            width: "100%", background: "transparent",
+            color: COULEURS.doux, border: `1px solid ${COULEURS.bordure}`,
+            borderRadius: 16, padding: 14, fontSize: 14, fontWeight: 600,
+            cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
+          }}
+        >
+          🗑️ Supprimer mon compte
+        </button>
+      )}
+
+      {/* ── Étape 1 : avertissement irréversible ── */}
+      {etape === 1 && (
+        <div style={{ background: "#FFF0F0", borderRadius: 18, padding: 20 }}>
+          <p style={{ fontWeight: 700, fontSize: 15, color: "#C62828", margin: "0 0 10px" }}>
+            ⚠️ Cette action est irréversible
+          </p>
+          <p style={{ fontSize: 13, color: COULEURS.encre, lineHeight: 1.6, margin: "0 0 16px" }}>
+            Toutes vos capsules, souvenirs, photos et vidéos seront{" "}
+            <strong>définitivement supprimés</strong> de nos serveurs.
+            Les capsules dont vous êtes l'unique créateur deviendront inaccessibles.
+          </p>
+          <button
+            onClick={() => setEtape(2)}
+            style={{ ...S.boutonPrincipal, background: "#C62828", boxShadow: "none", marginTop: 0 }}
+          >
+            Continuer vers la suppression
+          </button>
+          <button onClick={() => setEtape(0)} style={{ ...S.boutonSecondaire, marginTop: 10 }}>
+            Annuler
+          </button>
+        </div>
+      )}
+
+      {/* ── Étape 2 : confirmation par email ── */}
+      {etape === 2 && (
+        <div style={{ background: "#FFF0F0", borderRadius: 18, padding: 20 }}>
+          <p style={{ fontWeight: 700, fontSize: 15, color: "#C62828", margin: "0 0 10px" }}>
+            Confirmation finale
+          </p>
+          <p style={{ fontSize: 13, color: COULEURS.encre, lineHeight: 1.6, margin: "0 0 12px" }}>
+            Saisissez votre adresse email{" "}
+            <strong>{session?.user?.email}</strong>{" "}
+            pour confirmer la suppression définitive.
+          </p>
+          <input
+            style={S.input}
+            type="email"
+            placeholder="votre@email.com"
+            value={emailSaisi}
+            onChange={e => setEmailSaisi(e.target.value)}
+            autoFocus
+          />
+          {erreur && (
+            <p style={{ ...S.aide, color: "#C62828", marginTop: 6 }}>{erreur}</p>
+          )}
+          <button
+            onClick={supprimerDefinitivement}
+            disabled={!emailSaisi.trim()}
+            style={{
+              ...S.boutonPrincipal, background: "#C62828", boxShadow: "none", marginTop: 14,
+              ...(!emailSaisi.trim() ? S.boutonDesactive : {}),
+            }}
+          >
+            Supprimer définitivement
+          </button>
+          <button
+            onClick={() => { setEtape(0); setEmailSaisi(""); setErreur(""); }}
+            style={{ ...S.boutonSecondaire, marginTop: 10 }}
+          >
+            Annuler
+          </button>
+        </div>
+      )}
+
+      {/* ── Étape 3 : suppression en cours ── */}
+      {etape === 3 && (
+        <div style={{ textAlign: "center", padding: "24px 0", color: COULEURS.doux, fontSize: 14 }}>
+          ⏳ Suppression en cours…
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN PAPY SIMPLE — un souvenir à la fois, grands boutons, fond chaud.
+// ============================================================================
+//  ÉCRAN PAPY SIMPLE — 2 phases : accueil mensuel + galerie animée souvenir/souvenir.
+// ============================================================================
+function PhotoZoomable({ src }) {
+  const [scale, setScale] = React.useState(1);
+  const containerRef = React.useRef(null);
+  const st = React.useRef({ lastDist: null, lastScale: 1, scale: 1 });
+
+  React.useEffect(() => {
+    setScale(1); st.current.scale = 1; st.current.lastScale = 1;
+  }, [src]);
+
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const onStart = e => {
+      if (e.touches.length === 2) {
+        st.current.lastDist = dist(e.touches);
+        st.current.lastScale = st.current.scale;
+      }
+    };
+    const onMove = e => {
+      if (e.touches.length === 2 && st.current.lastDist != null) {
+        e.preventDefault();
+        const d = dist(e.touches);
+        const ns = Math.min(5, Math.max(1, st.current.lastScale * d / st.current.lastDist));
+        st.current.scale = ns;
+        setScale(ns);
+      }
+    };
+    const onEnd = e => { if (e.touches.length < 2) st.current.lastDist = null; };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("touchend", onEnd);
+    };
+  }, []);
+
+  return (
+    <div ref={containerRef}
+      style={{ position: "absolute", inset: 0, overflow: "hidden", background: "#111" }}
+      onDoubleClick={() => { const ns = st.current.scale > 1 ? 1 : 2.5; st.current.scale = ns; setScale(ns); }}>
+      <img src={src} alt="Photo"
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
+          objectFit: "contain",
+          transform: `scale(${scale})`, transformOrigin: "center center",
+          transition: "transform 0.12s ease",
+          userSelect: "none", pointerEvents: "none" }} />
+    </div>
+  );
+}
+
+function EcranPapySimple({ capsule, allerVers, onTerminer, autresCapsules }) {
+  const [phase, setPhase] = useState("accueil");
+  const [index, setIndex] = useState(0);
+  const [animKey, setAnimKey] = useState(0);
+  const [capsuleChoisie, setCapsuleChoisie] = useState(null);
+  // Photo / dessin zoom
+  const [zoomPhoto, setZoomPhoto] = useState(false);
+  // Vidéo
+  const videoRef = React.useRef(null);
+  const [videoPlaying, setVideoPlaying] = useState(false);
+  // Audio (vocal + musique)
+  const audioRef = React.useRef(null);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const [audioTermine, setAudioTermine] = useState(false);
+  const [audioProgress, setAudioProgress] = useState(0);
+  const [parolesModal, setParolesModal] = useState(false);
+
+  const capsuleAffichee = capsuleChoisie || capsule;
+  const contributions = capsuleAffichee?.contributions || [];
+  const total = contributions.length;
+  const contrib = contributions[index] || null;
+  const auteur = contrib
+    ? (capsuleAffichee?.participants || []).find(p => p.id === contrib.auteurId)
+    : null;
+
+  const prenoms = (capsuleAffichee?.participants || []).map(p => p.prenom).filter(Boolean);
+  const prenomsStr = prenoms.length === 0 ? "votre famille"
+    : prenoms.length === 1 ? prenoms[0]
+    : prenoms.slice(0, -1).join(", ") + " et " + prenoms[prenoms.length - 1];
+  const moisStr = new Date().toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+
+  // Réinitialise tout quand on change de souvenir
+  React.useEffect(() => {
+    setZoomPhoto(false);
+    setVideoPlaying(false);
+    setAudioPlaying(false);
+    setAudioTermine(false);
+    setAudioProgress(0);
+    setParolesModal(false);
+    try { if (videoRef.current) { videoRef.current.pause(); videoRef.current.currentTime = 0; } } catch {}
+    try { if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; } } catch {}
+  }, [index]);
+
+  function toggleVideo() {
+    if (!videoRef.current) return;
+    if (videoPlaying) { videoRef.current.pause(); } else { videoRef.current.play(); }
+  }
+  function toggleAudio() {
+    if (!audioRef.current) return;
+    if (audioTermine) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play();
+      setAudioTermine(false);
+    } else if (audioPlaying) {
+      audioRef.current.pause();
+    } else {
+      audioRef.current.play();
+    }
+  }
+
+  function allerSuivant() { setIndex(i => i + 1); setAnimKey(k => k + 1); }
+  function allerPrecedent() { setIndex(i => i - 1); setAnimKey(k => k + 1); }
+
+  // ── Phase accueil ──────────────────────────────────────────────────────────
+  if (phase === "accueil") return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%",
+      background: "linear-gradient(160deg, #FFF0E6 0%, #FFE4CC 50%, #FFF5EC 100%)",
+      alignItems: "center", justifyContent: "flex-start",
+      padding: "52px 24px 40px", textAlign: "center", position: "relative",
+      overflowY: "auto" }}>
+
+      {allerVers && (
+        <button onClick={() => allerVers("detail", capsule?.id)}
+          style={{ position: "absolute", top: 14, left: 14, background: "rgba(255,140,90,0.15)",
+            border: "none", borderRadius: 999, padding: "6px 14px", fontSize: 13,
+            fontWeight: 700, color: "#C25A20", cursor: "pointer" }}>
+          ← Retour
+        </button>
+      )}
+
+      {/* Cercles décoratifs en fond */}
+      <div style={{ position: "absolute", width: 260, height: 260, borderRadius: "50%",
+        background: "rgba(255,140,90,0.07)", top: -60, right: -60 }} />
+      <div style={{ position: "absolute", width: 180, height: 180, borderRadius: "50%",
+        background: "rgba(255,180,90,0.07)", bottom: 40, left: -50 }} />
+
+      {/* Icône pulsante */}
+      <div style={{ fontSize: 72, animation: "pulseCercle 2.2s ease-in-out infinite",
+        marginBottom: 20, filter: "drop-shadow(0 6px 18px rgba(255,140,90,0.35))" }}>
+        💌
+      </div>
+
+      {/* Badge mois */}
+      <div style={{ background: "linear-gradient(135deg, #FF8C5A 0%, #FF6B3C 100%)",
+        color: "#fff", borderRadius: 999, padding: "7px 20px", fontSize: 13, fontWeight: 800,
+        marginBottom: 18, fontFamily: "'Bricolage Grotesque', sans-serif",
+        animation: "fadeSlideUp 0.5s ease both",
+        boxShadow: "0 6px 18px rgba(255,108,60,0.35)" }}>
+        ✨ Nouveaux souvenirs
+      </div>
+
+      {/* Titre principal */}
+      <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+        fontSize: 22, color: "#3D1A0A", lineHeight: 1.35, marginBottom: 8,
+        animation: "fadeSlideUp 0.5s 0.08s ease both" }}>
+        Découvrez les souvenirs de<br />
+        <span style={{ color: "#FF6B3C" }}>{prenomsStr}</span>
+      </div>
+      <div style={{ fontSize: 15, color: "#A07850", marginBottom: 28,
+        animation: "fadeSlideUp 0.5s 0.14s ease both",
+        fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        pour le mois de <strong style={{ color: "#7C4A2A" }}>{moisStr}</strong>
+      </div>
+
+      {/* Avatars membres */}
+      {(capsuleAffichee?.participants || []).length > 0 && (
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 24,
+          animation: "fadeSlideUp 0.5s 0.2s ease both" }}>
+          {(capsuleAffichee.participants).slice(0, 5).map(p => (
+            <div key={p.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 50, height: 50, borderRadius: "50%",
+                background: p.couleur || "#FF8C5A", display: "flex",
+                alignItems: "center", justifyContent: "center",
+                fontSize: 18, fontWeight: 800, color: "#fff",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.14)" }}>
+                {initiales(p.prenom)}
+              </div>
+              <span style={{ fontSize: 11, color: "#A07850", fontWeight: 600,
+                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                {p.prenom}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Compteur */}
+      {total > 0 && (
+        <div style={{ fontSize: 14, color: "#B06840",
+          marginBottom: 22, fontFamily: "'Plus Jakarta Sans', sans-serif",
+          animation: "fadeSlideUp 0.5s 0.25s ease both" }}>
+          🎁 {total} souvenir{total > 1 ? "s" : ""} vous attendent
+        </div>
+      )}
+
+      {/* CTA */}
+      {total > 0 ? (
+        <button onClick={() => { setIndex(0); setAnimKey(0); setPhase("parcours"); }}
+          style={{ background: "linear-gradient(135deg, #FF8C5A 0%, #FF5A20 100%)",
+            color: "#fff", border: "none", borderRadius: 22, padding: "20px 0",
+            fontSize: 19, fontWeight: 800, cursor: "pointer", width: "100%",
+            fontFamily: "'Bricolage Grotesque', sans-serif",
+            boxShadow: "0 14px 32px rgba(255,90,32,0.45)",
+            animation: "fadeSlideUp 0.5s 0.3s ease both" }}>
+          Voir mes souvenirs ✨
+        </button>
+      ) : (
+        <div style={{ fontSize: 16, color: "#A07850", fontStyle: "italic",
+          animation: "fadeSlideUp 0.5s 0.25s ease both" }}>
+          Pas encore de souvenirs ce mois-ci…
+        </div>
+      )}
+
+      {/* ── Mois précédents ── */}
+      {autresCapsules?.length > 0 && (
+        <div style={{ marginTop: 32, width: "100%", animation: "fadeSlideUp 0.5s 0.38s ease both" }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#A07850", marginBottom: 12,
+            textAlign: "left", display: "flex", alignItems: "center", gap: 6 }}>
+            📅 Souvenirs des mois précédents
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[...autresCapsules]
+              .sort((a, b) => new Date(b.dateCreation || b.created_at || 0) - new Date(a.dateCreation || a.created_at || 0))
+              .map(c => {
+                const nb = (c.contributions || []).length;
+                const dateStr = c.dateCreation
+                  ? new Date(c.dateCreation).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+                  : c.created_at
+                  ? new Date(c.created_at).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+                  : "";
+                return (
+                  <button key={c.id}
+                    onClick={() => {
+                      setCapsuleChoisie(c);
+                      setIndex(0); setAnimKey(0); setPhase("parcours");
+                    }}
+                    style={{ background: "rgba(255,255,255,0.72)", border: "1.5px solid rgba(255,140,90,0.22)",
+                      borderRadius: 18, padding: "15px 18px", cursor: "pointer",
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                      backdropFilter: "blur(6px)", width: "100%", textAlign: "left" }}>
+                    <div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: "#3D1A0A" }}>{c.nom}</div>
+                      <div style={{ fontSize: 13, color: "#A07850", marginTop: 3 }}>
+                        {nb} souvenir{nb !== 1 ? "s" : ""}
+                        {dateStr ? ` · ${dateStr}` : ""}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 22, color: "#FF8C5A", flexShrink: 0 }}>→</span>
+                  </button>
+                );
+              })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Phase parcours — top bar solide + contenu + bottom bar ───────────────
+  const chansonData = contrib?.type === "chanson"
+    ? (() => { let d = {}; try { d = JSON.parse(contrib.question || "{}"); } catch {} return d; })()
+    : null;
+  const audioSrcChanson = chansonData ? (chansonData.preview || chansonData.previewUrl || null) : null;
+
+  return (
+    <div key={animKey} style={{ display: "flex", flexDirection: "column", height: "100%",
+      background: "#111", animation: "animSlideGauche 0.28s cubic-bezier(0.34,1.1,0.64,1) both" }}>
+
+      {/* ════════════════ BARRE HAUTE solide ════════════════ */}
+      <div style={{ flexShrink: 0, background: "#0e0e0e", paddingTop: 48 }}>
+        <div style={{ height: 4, background: "rgba(255,255,255,0.15)" }}>
+          <div style={{ height: "100%", background: "linear-gradient(90deg,#FF8C5A,#FF5A20)",
+            width: `${((index + 1) / total) * 100}%`,
+            transition: "width 0.4s cubic-bezier(0.4,0,0.2,1)",
+            borderRadius: "0 4px 4px 0" }} />
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px 0" }}>
+          <button onClick={() => setPhase("accueil")}
+            style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 999,
+              padding: "9px 16px", fontSize: 14, fontWeight: 700, color: "#fff",
+              cursor: "pointer", flexShrink: 0 }}>
+            ← Menu
+          </button>
+          <div style={{ flex: 1 }} />
+          {(contrib?.type === "photo" || contrib?.type === "dessin") && contrib?.media && (
+            <button onClick={() => setZoomPhoto(true)}
+              style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: 999,
+                padding: "9px 16px", fontSize: 14, fontWeight: 700, color: "#fff",
+                cursor: "pointer", flexShrink: 0 }}>
+              🔍 Agrandir
+            </button>
+          )}
+          <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 999, padding: "8px 14px",
+            fontSize: 14, fontWeight: 800, color: "#fff", flexShrink: 0 }}>
+            {index + 1} / {total}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px 12px" }}>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0,
+            background: auteur?.couleur || "#FF8C5A",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 14, fontWeight: 800, color: "#fff" }}>
+            {initiales(auteur?.prenom)}
+          </div>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: "#fff" }}>
+              {auteur?.prenom || "Quelqu'un"}
+            </div>
+            <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 1 }}>
+              {formaterDateHeure(contrib?.date)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ════════════════ ZONE CONTENU ════════════════ */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+
+      {/* ════════════════ PHOTO ════════════════ */}
+      {contrib?.type === "photo" && (
+        contrib.media
+          ? <PhotoZoomable src={contrib.media} />
+          : <div style={{ position: "absolute", inset: 0,
+              background: "linear-gradient(135deg,#FF8C5A 0%,#FFD580 55%,#FF6B88 100%)",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 88 }}>🌸</div>
+                <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 16, fontWeight: 700,
+                  marginTop: 12, background: "rgba(0,0,0,0.18)", padding: "6px 20px", borderRadius: 999 }}>
+                  Photo
+                </div>
+              </div>
+            </div>
+      )}
+
+      {/* ════════════════ DESSIN ════════════════ */}
+      {contrib?.type === "dessin" && (
+        contrib.media
+          ? <img src={contrib.media} alt="Dessin"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%",
+                objectFit: "contain", background: "#fff" }} />
+          : <div style={{ position: "absolute", inset: 0, background: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ fontSize: 80, opacity: 0.3 }}>🖌️</div>
+            </div>
+      )}
+
+      {/* ════════════════ VIDÉO ════════════════ */}
+      {contrib?.type === "video" && (
+        <div style={{ position: "absolute", inset: 0, background: "#000" }}>
+          {contrib.media
+            ? <video ref={videoRef} src={contrib.media} playsInline
+                onPlay={() => setVideoPlaying(true)}
+                onPause={() => setVideoPlaying(false)}
+                onEnded={() => setVideoPlaying(false)}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : <div style={{ width: "100%", height: "100%", background: "linear-gradient(145deg,#0f172a,#1e293b)",
+                display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ fontSize: 88, filter: "drop-shadow(0 0 28px rgba(255,140,90,0.6))",
+                  animation: "pulseCercle 1.8s ease-in-out infinite" }}>🎬</div>
+                <div style={{ fontSize: 20, color: "rgba(255,255,255,0.8)", marginTop: 20,
+                  fontWeight: 600, textAlign: "center", padding: "0 40px", lineHeight: 1.5 }}>
+                  {contrib.texte || "Vidéo"}
+                </div>
+              </div>
+          }
+          {/* Gros bouton Play central — disparaît pendant la lecture */}
+          {contrib.media && !videoPlaying && (
+            <button onClick={toggleVideo}
+              style={{ position: "absolute", inset: 0, background: "transparent", border: "none",
+                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <div style={{ width: 96, height: 96, borderRadius: "50%",
+                background: "rgba(255,255,255,0.93)", backdropFilter: "blur(4px)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                boxShadow: "0 10px 40px rgba(0,0,0,0.55)" }}>
+                <span style={{ fontSize: 38, marginLeft: 7 }}>▶</span>
+              </div>
+            </button>
+          )}
+          {/* Bouton Pause discret pendant la lecture */}
+          {contrib.media && videoPlaying && (
+            <button onClick={toggleVideo}
+              style={{ position: "absolute", top: 110, right: 16,
+                background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)", border: "none",
+                borderRadius: 999, padding: "11px 20px",
+                color: "#fff", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+              ⏸ Pause
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════ MESSAGE ════════════════ */}
+      {contrib?.type === "message" && (
+        <div style={{ position: "absolute", inset: 0,
+          background: "linear-gradient(145deg,#FFF8F2 0%,#FFE8D0 100%)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "24px 32px" }}>
+          <div style={{ fontSize: 60, marginBottom: 28 }}>💬</div>
+          <div style={{ fontSize: 26, lineHeight: 1.8, color: "#3D1A0A",
+            fontFamily: "'Plus Jakarta Sans', sans-serif", fontStyle: "italic",
+            fontWeight: 500, textAlign: "center", maxWidth: 340 }}>
+            « {contrib.texte} »
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════ VOCAL ════════════════ */}
+      {contrib?.type === "vocal" && (
+        <div style={{ position: "absolute", inset: 0,
+          background: "linear-gradient(145deg,#F0FDF4 0%,#DCFCE7 100%)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "24px 32px" }}>
+
+          {contrib.media && (
+            <audio ref={audioRef} src={contrib.media}
+              onPlay={() => setAudioPlaying(true)}
+              onPause={() => setAudioPlaying(false)}
+              onEnded={() => { setAudioPlaying(false); setAudioTermine(true); }}
+              onTimeUpdate={() => audioRef.current?.duration &&
+                setAudioProgress(audioRef.current.currentTime / audioRef.current.duration)} />
+          )}
+
+          {/* Waveform — animée seulement pendant la lecture */}
+          <div style={{ display: "flex", gap: 5, alignItems: "center", height: 80, marginBottom: 36 }}>
+            {[0.4,0.65,1,0.55,0.85,0.45,0.75,0.5,0.9,0.6,1,0.5,0.8,0.45,0.7,0.4,0.9,0.6].map((h, i) => (
+              <div key={i} style={{ width: 6, borderRadius: 99,
+                background: "linear-gradient(to top,#16A34A,#4ADE80)",
+                height: `${h * 100}%`,
+                opacity: audioPlaying ? 1 : 0.35,
+                transition: "opacity 0.4s",
+                animation: audioPlaying
+                  ? `pulseCercle ${0.7 + (i % 4) * 0.2}s ${i * 0.05}s ease-in-out infinite`
+                  : "none" }} />
+            ))}
+          </div>
+
+          {/* Gros bouton central */}
+          <button onClick={contrib.media ? toggleAudio : undefined}
+            style={{ width: 110, height: 110, borderRadius: "50%", border: "none",
+              background: audioPlaying
+                ? "linear-gradient(135deg,#15803D,#166534)"
+                : "linear-gradient(135deg,#22C55E,#16A34A)",
+              color: "#fff", fontSize: 40, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: audioPlaying
+                ? "0 0 0 14px rgba(34,197,94,0.18), 0 8px 28px rgba(22,163,74,0.5)"
+                : "0 8px 28px rgba(22,163,74,0.45)",
+              transition: "all 0.25s" }}>
+            {audioPlaying ? "⏸" : audioTermine ? "↺" : "▶"}
+          </button>
+          <div style={{ marginTop: 18, fontSize: 19, fontWeight: 700, color: "#14532D",
+            textAlign: "center" }}>
+            {audioPlaying ? "En cours d'écoute…"
+              : audioTermine ? "Appuyez pour réécouter"
+              : "Appuyez pour écouter"}
+          </div>
+
+          {/* Barre de progression audio */}
+          {(audioPlaying || audioTermine || audioProgress > 0) && (
+            <div style={{ width: "75%", height: 8, background: "#BBF7D0", borderRadius: 99, marginTop: 22 }}>
+              <div style={{ width: `${audioProgress * 100}%`, height: "100%",
+                background: "#16A34A", borderRadius: 99, transition: "width 0.25s" }} />
+            </div>
+          )}
+
+          {contrib.texte && (
+            <div style={{ fontSize: 18, color: "#15803D", marginTop: 24, lineHeight: 1.6,
+              textAlign: "center", maxWidth: 300 }}>{contrib.texte}</div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════ MUSIQUE ════════════════ */}
+      {contrib?.type === "musique" && (
+        <div style={{ position: "absolute", inset: 0,
+          background: "linear-gradient(145deg,#1e003a 0%,#3b0764 100%)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "24px 32px", overflow: "hidden" }}>
+          {["♪","♫","♩","♬","♪","♫","♩","♬"].map((n, i) => (
+            <div key={i} style={{ position: "absolute", fontSize: 30,
+              color: "rgba(255,255,255,0.1)",
+              top: `${6 + i * 11}%`, left: `${4 + i * 13}%`,
+              animation: `animNoteFlotante ${2.2 + i * 0.4}s ${i * 0.3}s ease-out infinite` }}>{n}</div>
+          ))}
+
+          {contrib.media && (
+            <audio ref={audioRef} src={contrib.media}
+              onPlay={() => setAudioPlaying(true)}
+              onPause={() => setAudioPlaying(false)}
+              onEnded={() => { setAudioPlaying(false); setAudioTermine(true); }}
+              onTimeUpdate={() => audioRef.current?.duration &&
+                setAudioProgress(audioRef.current.currentTime / audioRef.current.duration)} />
+          )}
+
+          <div style={{ fontSize: 88, marginBottom: 18 }}>🎵</div>
+          <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800,
+            fontSize: 26, color: "#fff", marginBottom: 6, textAlign: "center" }}>
+            {contrib.titre || "Une chanson pour vous"}
+          </div>
+          {contrib.artiste && (
+            <div style={{ fontSize: 18, color: "rgba(255,255,255,0.7)", marginBottom: 22 }}>
+              {contrib.artiste}
+            </div>
+          )}
+          {contrib.texte && (
+            <div style={{ fontSize: 17, color: "rgba(255,255,255,0.88)", lineHeight: 1.65,
+              fontStyle: "italic", textAlign: "center", maxWidth: 320, marginBottom: 28 }}>
+              « {contrib.texte} »
+            </div>
+          )}
+
+          <button onClick={contrib.media ? toggleAudio : undefined}
+            style={{ width: 100, height: 100, borderRadius: "50%", border: "none",
+              background: audioPlaying ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.92)",
+              color: audioPlaying ? "#fff" : "#3b0764",
+              fontSize: 38, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: audioPlaying
+                ? "0 0 0 14px rgba(192,132,252,0.2), 0 8px 32px rgba(0,0,0,0.4)"
+                : "0 8px 32px rgba(0,0,0,0.4)",
+              transition: "all 0.25s" }}>
+            {audioPlaying ? "⏸" : audioTermine ? "↺" : "▶"}
+          </button>
+          <div style={{ marginTop: 16, fontSize: 17, fontWeight: 700,
+            color: "rgba(255,255,255,0.8)", textAlign: "center" }}>
+            {audioPlaying ? "En écoute…"
+              : audioTermine ? "Appuyez pour réécouter"
+              : "Appuyez pour écouter"}
+          </div>
+          {(audioPlaying || audioTermine || audioProgress > 0) && (
+            <div style={{ width: "70%", height: 6, background: "rgba(255,255,255,0.2)",
+              borderRadius: 99, marginTop: 18 }}>
+              <div style={{ width: `${audioProgress * 100}%`, height: "100%",
+                background: "#C084FC", borderRadius: 99, transition: "width 0.25s" }} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════ QUESTION / PARI ════════════════ */}
+      {(contrib?.type === "question" || contrib?.type === "pari") && (() => {
+        let votes = {};
+        try { const d = JSON.parse(contrib.question || "{}"); votes = d.votes || {}; } catch {}
+        const parts = capsuleAffichee?.participants || [];
+        return (
+          <div style={{ position: "absolute", inset: 0,
+            background: "linear-gradient(145deg,#0c2340 0%,#1a3a6e 100%)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            padding: "24px 28px", overflowY: "auto" }}>
+            <div style={{ fontSize: 68, marginBottom: 18 }}>🎯</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.5)",
+              marginBottom: 14, letterSpacing: 2 }}>PARI</div>
+            <div style={{ fontSize: 22, lineHeight: 1.7, color: "#fff", textAlign: "center",
+              fontWeight: 700, maxWidth: 320, marginBottom: 24 }}>
+              {contrib.texte}
+            </div>
+            {Object.keys(votes).length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
+                {Object.entries(votes).map(([pid, v]) => {
+                  const p = parts.find(x => x.id === pid);
+                  return (
+                    <div key={pid} style={{ background: "rgba(255,255,255,0.1)", borderRadius: 16,
+                      padding: "13px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: "50%",
+                        background: p?.couleur || "#FF8C5A", flexShrink: 0,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 14, fontWeight: 800, color: "#fff" }}>
+                        {initiales(p?.prenom)}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: "#fff", fontWeight: 700, fontSize: 16 }}>{p?.prenom || "?"}</div>
+                        {v.commentaire && <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 14 }}>{v.commentaire}</div>}
+                      </div>
+                      <div style={{ fontSize: 26 }}>{v.vote === "gagne" ? "✅" : v.vote === "perdu" ? "❌" : "❓"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ════════════════ SECRET ════════════════ */}
+      {contrib?.type === "secret" && (
+        <div style={{ position: "absolute", inset: 0,
+          background: "linear-gradient(145deg,#1a0533 0%,#2d0a5e 100%)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+          padding: "24px 32px" }}>
+          <div style={{ fontSize: 80, marginBottom: 22,
+            filter: "drop-shadow(0 0 24px rgba(200,150,255,0.55))" }}>🤫</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "rgba(255,255,255,0.5)",
+            marginBottom: 22, letterSpacing: 2 }}>UN SECRET</div>
+          <div style={{ fontSize: 24, lineHeight: 1.8, color: "#fff",
+            fontFamily: "'Plus Jakarta Sans',sans-serif", fontStyle: "italic",
+            fontWeight: 500, textAlign: "center", maxWidth: 340,
+            background: "rgba(255,255,255,0.08)", borderRadius: 24, padding: "24px 28px" }}>
+            « {contrib.texte} »
+          </div>
+        </div>
+      )}
+
+      {/* ════════════════ MÉTÉO ════════════════ */}
+      {contrib?.type === "meteo" && (() => {
+        let d = {}; try { d = JSON.parse(contrib.question || "{}"); } catch {}
+        const bgs = { soleil:"linear-gradient(145deg,#FFFDE7,#FFE082)",
+          nuages:"linear-gradient(145deg,#E3F2FD,#90CAF9)",
+          pluie:"linear-gradient(145deg,#BBDEFB,#64B5F6)",
+          orage:"linear-gradient(145deg,#B0BEC5,#78909C)",
+          neige:"linear-gradient(145deg,#E3F2FD,#B3E5FC)",
+          brume:"linear-gradient(145deg,#ECEFF1,#CFD8DC)" };
+        const emojis = { soleil:"☀️", nuages:"⛅", pluie:"🌧️", orage:"⛈️", neige:"❄️", brume:"🌫️" };
+        const textDark = ["orage","brume","nuages"].includes(d.cle);
+        const tc = textDark ? "#1a2a3a" : "#2E2230";
+        return (
+          <div style={{ position: "absolute", inset: 0,
+            background: bgs[d.cle] || "linear-gradient(145deg,#BBDEFB,#90CAF9)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            padding: "16px 28px", overflowY: "auto" }}>
+            <div style={{ fontSize: 80, marginBottom: 6,
+              filter: "drop-shadow(0 4px 20px rgba(0,0,0,0.12))" }}>
+              {emojis[d.cle] || "🌤"}
+            </div>
+            <div style={{ fontSize: 60, fontWeight: 900, color: tc, lineHeight: 1, marginBottom: 6 }}>
+              {d.temp || "--"}°C
+            </div>
+            {(d.lieu || d.date) && (
+              <div style={{ fontSize: 15, color: tc, opacity: 0.65, marginBottom: 14 }}>
+                {d.lieu}{d.lieu && d.date ? " · " : ""}{d.date}
+              </div>
+            )}
+            {d.commentaire && (
+              <div style={{ background: "rgba(255,255,255,0.6)", borderRadius: 20,
+                padding: "14px 20px", fontSize: 17, fontStyle: "italic",
+                color: tc, lineHeight: 1.65, textAlign: "center", maxWidth: 320 }}>
+                « {d.commentaire} »
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ════════════════ CHANSON ════════════════ */}
+      {contrib?.type === "chanson" && (() => {
+        const d = chansonData || {};
+        return (
+          <div style={{ position: "absolute", inset: 0,
+            background: "linear-gradient(145deg,#1e003a 0%,#3b0764 100%)",
+            display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+            padding: "20px 32px", overflow: "hidden" }}>
+            {audioSrcChanson && (
+              <audio ref={audioRef} src={audioSrcChanson}
+                onPlay={() => setAudioPlaying(true)}
+                onPause={() => setAudioPlaying(false)}
+                onEnded={() => { setAudioPlaying(false); setAudioTermine(true); }}
+                onTimeUpdate={() => audioRef.current?.duration &&
+                  setAudioProgress(audioRef.current.currentTime / audioRef.current.duration)} />
+            )}
+            {["♪","♫","♩","♬","♪","♫"].map((n, i) => (
+              <div key={i} style={{ position: "absolute", fontSize: 30,
+                color: "rgba(255,255,255,0.09)",
+                top: `${6 + i * 14}%`, left: `${4 + i * 17}%`,
+                animation: `animNoteFlotante ${2.2 + i * 0.4}s ${i * 0.3}s ease-out infinite` }}>{n}</div>
+            ))}
+            {/* Hint "écouter" — visible uniquement avant le premier lancement */}
+            {audioSrcChanson && !audioPlaying && !audioTermine && (
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 14,
+                background: "rgba(192,132,252,0.18)", border: "1px solid rgba(192,132,252,0.35)",
+                borderRadius: 999, padding: "8px 18px", animation: "pulseCercle 2s ease-in-out infinite" }}>
+                <span style={{ fontSize: 15 }}>▶</span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#E9D5FF", letterSpacing: 0.3 }}>
+                  Touchez la pochette pour écouter
+                </span>
+              </div>
+            )}
+            {/* Pochette cliquable pour lancer / arrêter la musique */}
+            <button onClick={audioSrcChanson ? toggleAudio : undefined}
+              style={{ background: "none", border: "none", cursor: audioSrcChanson ? "pointer" : "default",
+                padding: 0, position: "relative", marginBottom: 18 }}>
+              {d.pochette
+                ? <img src={d.pochette} alt="pochette"
+                    style={{ width: 160, height: 160, borderRadius: 22, objectFit: "cover", display: "block",
+                      boxShadow: `0 12px 44px rgba(0,0,0,0.55)${audioPlaying ? ", 0 0 0 4px rgba(192,132,252,0.5)" : ""}`,
+                      transition: "box-shadow 0.3s" }} />
+                : <div style={{ width: 160, height: 160, borderRadius: 22,
+                    background: "rgba(255,255,255,0.08)",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 80, boxShadow: "0 12px 44px rgba(0,0,0,0.55)" }}>🎵</div>
+              }
+              <div style={{ position: "absolute", inset: 0, borderRadius: 22,
+                background: audioPlaying ? "rgba(0,0,0,0.12)" : "rgba(0,0,0,0.32)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                transition: "background 0.25s" }}>
+                <span style={{ fontSize: 44, filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.7))" }}>
+                  {audioPlaying ? "⏸" : audioTermine ? "↺" : "▶"}
+                </span>
+              </div>
+            </button>
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800,
+              fontSize: 24, color: "#fff", marginBottom: 4, textAlign: "center" }}>
+              {d.titre || "Une chanson pour vous"}
+            </div>
+            {d.artiste && (
+              <div style={{ fontSize: 17, color: "rgba(255,255,255,0.7)", marginBottom: 10 }}>
+                {d.artiste}
+              </div>
+            )}
+            {contrib.texte && (
+              <div style={{ fontSize: 16, color: "rgba(255,255,255,0.85)", lineHeight: 1.6,
+                fontStyle: "italic", textAlign: "center", maxWidth: 300, marginBottom: 14 }}>
+                « {contrib.texte} »
+              </div>
+            )}
+            {(audioPlaying || audioTermine || audioProgress > 0) && (
+              <div style={{ width: "70%", height: 5, background: "rgba(255,255,255,0.2)",
+                borderRadius: 99, marginBottom: 16 }}>
+                <div style={{ width: `${audioProgress * 100}%`, height: "100%",
+                  background: "#C084FC", borderRadius: 99, transition: "width 0.25s" }} />
+              </div>
+            )}
+            {d.paroles && (
+              <button onClick={() => setParolesModal(true)}
+                style={{ background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.22)",
+                  borderRadius: 999, padding: "11px 28px", fontSize: 16, fontWeight: 700,
+                  color: "#fff", cursor: "pointer" }}>
+                📖 Voir les paroles
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      </div>{/* fin zone contenu */}
+
+      {/* ════════════════ BARRE BASSE solide ════════════════ */}
+      <div style={{ flexShrink: 0, background: "#0e0e0e", padding: "12px 16px 30px" }}>
+        {["photo","video","dessin"].includes(contrib?.type) && contrib?.texte && (
+          <div style={{ fontSize: 15, color: "#ccc", lineHeight: 1.5, marginBottom: 10 }}>
+            {contrib.texte}
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 12 }}>
+          <button disabled={index === 0} onClick={allerPrecedent}
+            style={{ flex: 1, padding: "18px 0", fontSize: 17, fontWeight: 800,
+              borderRadius: 20, border: "none",
+              background: index === 0 ? "rgba(255,255,255,0.07)" : "rgba(255,255,255,0.14)",
+              color: index === 0 ? "rgba(255,255,255,0.25)" : "#fff",
+              cursor: index === 0 ? "default" : "pointer" }}>
+            ← Précédent
+          </button>
+          <button
+            onClick={index < total - 1
+              ? allerSuivant
+              : () => { if (onTerminer) onTerminer(); else setPhase("accueil"); }}
+            style={{ flex: 2, padding: "18px 0", fontSize: 18, fontWeight: 800,
+              borderRadius: 20, border: "none",
+              background: "linear-gradient(135deg,#FF8C5A 0%,#FF5A20 100%)",
+              color: "#fff", boxShadow: "0 8px 24px rgba(255,90,32,0.4)", cursor: "pointer" }}>
+            {index < total - 1 ? "Suivant →" : "✓ Terminé"}
+          </button>
+        </div>
+      </div>
+
+      {/* ════════════════ MODAL ZOOM PHOTO / DESSIN ════════════════ */}
+      {zoomPhoto && contrib?.media && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(0,0,0,0.97)",
+          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setZoomPhoto(false)}>
+          <img src={contrib.media} alt="Zoom"
+            style={{ maxWidth: "100%", maxHeight: "82vh", objectFit: "contain", borderRadius: 6 }} />
+          <button onClick={() => setZoomPhoto(false)}
+            style={{ marginTop: 28, background: "rgba(255,255,255,0.16)", border: "none",
+              color: "#fff", fontSize: 18, fontWeight: 700, borderRadius: 999,
+              padding: "16px 44px", cursor: "pointer", backdropFilter: "blur(8px)" }}>
+            ✕ Fermer
+          </button>
+        </div>
+      )}
+
+      {/* ════════════════ MODAL PAROLES ════════════════ */}
+      {parolesModal && chansonData?.paroles && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 200,
+          background: "rgba(14,0,28,0.97)", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "52px 20px 12px", display: "flex", alignItems: "center",
+            justifyContent: "space-between", flexShrink: 0 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 19, color: "#fff" }}>
+                {chansonData.titre || "Paroles"}
+              </div>
+              {chansonData.artiste && (
+                <div style={{ fontSize: 14, color: "rgba(255,255,255,0.6)", marginTop: 2 }}>
+                  {chansonData.artiste}
+                </div>
+              )}
+            </div>
+            <button onClick={() => setParolesModal(false)}
+              style={{ background: "rgba(255,255,255,0.12)", border: "none", borderRadius: 999,
+                padding: "10px 18px", fontSize: 15, fontWeight: 700, color: "#fff", cursor: "pointer" }}>
+              ✕
+            </button>
+          </div>
+          {audioPlaying && (
+            <div style={{ display: "flex", gap: 4, alignItems: "center", justifyContent: "center",
+              paddingBottom: 10, flexShrink: 0 }}>
+              {[0.5,0.8,1,0.6,0.9,0.5,0.75,0.4,0.85,0.55].map((h, i) => (
+                <div key={i} style={{ width: 4, borderRadius: 99, background: "#C084FC",
+                  height: `${h * 28}px`,
+                  animation: `pulseCercle ${0.7 + (i % 4) * 0.2}s ${i * 0.06}s ease-in-out infinite` }} />
+              ))}
+            </div>
+          )}
+          <div style={{ flex: 1, overflowY: "auto", padding: "8px 28px 48px" }}>
+            <div style={{ fontSize: 18, color: "rgba(255,255,255,0.88)", lineHeight: 2.0,
+              textAlign: "center", whiteSpace: "pre-line", fontStyle: "italic" }}>
+              {chansonData.paroles}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN APERÇU PAPY — prévisualisation avec 5 types de souvenirs animés.
+// ============================================================================
+// ============================================================================
+//  ÉCRAN SUCCÈS PACK MAMIE/PAPY — formulaire de création post-paiement
+// ============================================================================
+function EcranSuccesPapy({ creerCapsule, allerVers }) {
+  const [nom, setNom]               = useState("");
+  const [couverture, setCouverture] = useState(null);
+  const [preview, setPreview]       = useState(null);
+  const [enCours, setEnCours]       = useState(false);
+
+  // Génère les 12 prochains mois disponibles (minimum : dans 2 mois)
+  const MOIS_NOMS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  const moisDisponibles = React.useMemo(() => {
+    const opts = [];
+    const base = new Date();
+    base.setDate(1);
+    base.setHours(0, 0, 0, 0);
+    // minimum = mois courant + 2 (au moins 1 mois entier de contributions avant ouverture)
+    base.setMonth(base.getMonth() + 2);
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(base);
+      d.setMonth(base.getMonth() + i);
+      opts.push({
+        label: `${MOIS_NOMS[d.getMonth()]} ${d.getFullYear()}`,
+        mois:  d.getMonth(),
+        annee: d.getFullYear(),
+        iso:   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`,
+      });
+    }
+    return opts;
+  }, []);
+
+  const [moisIdx, setMoisIdx] = useState(0);
+  const moisOuverture = moisDisponibles[moisIdx];
+
+  // Mois de contribution = ouverture - 1 mois
+  const moisContrib = React.useMemo(() => {
+    const d = new Date(moisOuverture.iso);
+    d.setMonth(d.getMonth() - 1);
+    return `${MOIS_NOMS[d.getMonth()]} ${d.getFullYear()}`;
+  }, [moisOuverture]);
+
+  function onPhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCouverture(file);
+    const r = new FileReader();
+    r.onload = ev => setPreview(ev.target.result);
+    r.readAsDataURL(file);
+  }
+
+  async function valider() {
+    if (!nom.trim()) return;
+    setEnCours(true);
+    try {
+      await creerCapsule({
+        nom: nom.trim(), type: "retraite",
+        dateOuverture: moisOuverture.iso,
+        couverture: couverture || null,
+        formule: "papy",
+        ecranSucces: "papy",
+      });
+    } catch (e) {
+      alert("Erreur : " + e.message);
+      setEnCours(false);
+    }
+  }
+
+  return (
+    <div style={S.ecran}>
+
+      {/* ── Bandeau principal ── */}
+      <div style={{ background:"linear-gradient(135deg,#C25A20,#FF8C5A)",
+        borderRadius:20, padding:"16px 16px 14px", marginBottom:16, flexShrink:0 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+          <div style={{ fontSize:32, lineHeight:1 }}>👴</div>
+          <div>
+            <div style={{ fontFamily:"'Bricolage Grotesque',sans-serif", fontWeight:800,
+              fontSize:16, color:"#fff" }}>Pack Mamie / Papy activé !</div>
+            <div style={{ fontSize:11, color:"rgba(255,240,220,.85)", marginTop:1,
+              fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Capsule mensuelle · renouvellement automatique</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+          {["📷 30 photos","🎬 4 vidéos","🎤 4 vocaux","👥 Membres illimités"].map(f => (
+            <div key={f} style={{ background:"rgba(255,255,255,.2)", borderRadius:10,
+              padding:"4px 9px", fontSize:11, color:"#fff", fontWeight:600, whiteSpace:"nowrap" }}>
+              {f}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── 1. Prénom de Mamie/Papy ── */}
+      <label style={S.label}>Prénom de Mamie / Papy</label>
+      <input style={{ ...S.input, marginBottom:14 }} placeholder="Ex. Capsule de Mamie Joëlle"
+        value={nom} onChange={e => setNom(e.target.value)} autoFocus />
+
+      {/* ── 2. Première ouverture ── */}
+      <label style={S.label}>Première ouverture par Mamie / Papy</label>
+      <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+        <button onClick={() => setMoisIdx(i => Math.max(0, i - 1))}
+          disabled={moisIdx === 0}
+          style={{ flexShrink:0, width:40, height:40, borderRadius:12,
+            border:"1.5px solid rgba(255,140,90,.4)", background:"#fff",
+            fontSize:20, color: moisIdx === 0 ? "rgba(255,140,90,.3)" : "#C25A20",
+            cursor: moisIdx === 0 ? "default" : "pointer",
+            fontFamily:"sans-serif", lineHeight:1, padding:0 }}>‹</button>
+        <div style={{ flex:1, textAlign:"center", padding:"10px 12px", borderRadius:16,
+          border:"2px solid #FF5A20",
+          background:"linear-gradient(135deg,#FFF5EC,#FFF0E6)" }}>
+          <div style={{ fontWeight:800, fontSize:16, color:"#C25A20",
+            fontFamily:"'Bricolage Grotesque',sans-serif" }}>
+            {moisOuverture.label}
+          </div>
+          <div style={{ fontSize:11, color:"#A07850", marginTop:2 }}>
+            Ouverture le 1er {moisOuverture.label}
+          </div>
+        </div>
+        <button onClick={() => setMoisIdx(i => Math.min(moisDisponibles.length - 1, i + 1))}
+          disabled={moisIdx === moisDisponibles.length - 1}
+          style={{ flexShrink:0, width:40, height:40, borderRadius:12,
+            border:"1.5px solid rgba(255,140,90,.4)", background:"#fff",
+            fontSize:20, color: moisIdx === moisDisponibles.length-1 ? "rgba(255,140,90,.3)" : "#C25A20",
+            cursor: moisIdx === moisDisponibles.length-1 ? "default" : "pointer",
+            fontFamily:"sans-serif", lineHeight:1, padding:0 }}>›</button>
+      </div>
+
+      {/* ── 3. Récapitulatif dynamique ── */}
+      <div style={{ background:"#FFF5EC", border:"1.5px solid rgba(255,140,90,.35)",
+        borderRadius:16, padding:"11px 13px", marginBottom:16 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:7 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:16, width:24, textAlign:"center", flexShrink:0 }}>💳</span>
+            <div style={{ fontSize:12, color:"#5C3A1E" }}>
+              <strong>Prélèvement · 1er {moisContrib}</strong>
+              <span style={{ color:"#A07850" }}> — les membres déposent leurs souvenirs</span>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:16, width:24, textAlign:"center", flexShrink:0 }}>👴</span>
+            <div style={{ fontSize:12, color:"#5C3A1E" }}>
+              <strong>Mamie/Papy découvre · 1er {moisOuverture.label}</strong>
+              <span style={{ color:"#A07850" }}> — reçoit son lien, voit tout</span>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:14, width:24, textAlign:"center", flexShrink:0 }}>🔄</span>
+            <div style={{ fontSize:11, color:"#A07850", fontStyle:"italic" }}>
+              Puis cycle automatique chaque mois — résiliable à tout moment
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── 4. Photo de couverture (optionnelle) ── */}
+      <label style={S.label}>
+        Photo de couverture
+        <span style={{ color:COULEURS.doux, fontWeight:500 }}> (optionnelle)</span>
+      </label>
+      <label style={{ display:"block", cursor:"pointer", marginBottom:20 }}>
+        <input type="file" accept="image/*" onChange={onPhoto} style={{ display:"none" }} />
+        <div style={{ borderRadius:16, overflow:"hidden",
+          background: preview ? "none" : "#FFF5EC",
+          border: preview ? "2px solid #FF8C5A" : "2px dashed rgba(255,140,90,.4)",
+          height: preview ? "auto" : 64,
+          display:"flex", alignItems:"center", justifyContent:"center",
+          position:"relative", transition:"border .15s" }}>
+          {preview
+            ? <img src={preview} alt="couverture"
+                style={{ width:"100%", maxHeight:120, objectFit:"cover", borderRadius:14, display:"block" }} />
+            : <div style={{ display:"flex", alignItems:"center", gap:8, color:"rgba(255,140,90,.8)" }}>
+                <span style={{ fontSize:20 }}>🖼️</span>
+                <span style={{ fontSize:13, fontWeight:600 }}>Ajouter une photo</span>
+              </div>
+          }
+          {preview && (
+            <div style={{ position:"absolute", bottom:8, right:10,
+              background:"rgba(0,0,0,.45)", borderRadius:8,
+              padding:"3px 10px", fontSize:11, color:"#fff", fontWeight:600 }}>
+              Changer ✎
+            </div>
+          )}
+        </div>
+      </label>
+
+      {/* ── Bouton créer ── */}
+      <button
+        style={{ ...S.boutonPrincipal, ...(!nom.trim() || enCours ? S.boutonDesactive : {}),
+          background: nom.trim() ? "linear-gradient(135deg,#C25A20,#FF8C5A)" : undefined }}
+        disabled={!nom.trim() || enCours}
+        onClick={valider}>
+        {enCours ? "Création en cours…" : "✨ Ouvrir l'espace souvenirs →"}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ONGLET PAPY / MAMIE — hub mensuel : setup, capsule en cours, mois précédents
+// ============================================================================
+function EcranPapy({ capsules, moi, allerVers, creerCapsule, modifierNom, modifierCouverture }) {
+  const now = new Date();
+
+  const papyCapsules = capsules
+    .filter(c =>
+      c.formule === "papy" &&
+      (c.createurId === moi?.id || c.participants.some(p => p.userId === moi?.id))
+    )
+    .sort((a, b) =>
+      new Date(b.dateOuverture || b.dateCreation || 0) -
+      new Date(a.dateOuverture || a.dateCreation || 0)
+    );
+
+  // Pas encore de capsule papy → formulaire de setup inline
+  if (papyCapsules.length === 0) {
+    return <EcranSuccesPapy creerCapsule={creerCapsule} allerVers={allerVers} />;
+  }
+
+  const capsuleActuelle = papyCapsules[0];
+  const moisPrecedents  = papyCapsules.slice(1);
+  const estCreateur     = capsuleActuelle.createurId === moi?.id;
+  const nbContribs      = capsuleActuelle.contributions?.length || 0;
+  const totalContribs   = papyCapsules.reduce((sum, c) => sum + (c.contributions?.length || 0), 0);
+  const dateOuv         = capsuleActuelle.dateOuverture ? new Date(capsuleActuelle.dateOuverture) : null;
+  const enCours         = !dateOuv || dateOuv > now;
+  const joursJ          = dateOuv ? Math.ceil((dateOuv - now) / 86400000) : null;
+
+  const [editionNom, setEditionNom]   = useState(false);
+  const [nouveauNom, setNouveauNom]   = useState(capsuleActuelle.nom);
+
+  return (
+    <div style={{ ...S.ecran, padding: "0 0 96px" }}>
+
+      {/* ── Hero : photo de couverture (pleine largeur, 210px) ── */}
+      <div style={{ position: "relative", height: 210, flexShrink: 0, marginBottom: 16 }}>
+        {capsuleActuelle.couverture ? (
+          <img src={capsuleActuelle.couverture} alt=""
+            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block",
+              borderRadius: "0 0 28px 28px" }} />
+        ) : (
+          <div style={{ width: "100%", height: "100%",
+            background: "linear-gradient(135deg,#C25A20 0%,#FF8C5A 60%,#FFB37A 100%)",
+            borderRadius: "0 0 28px 28px",
+            display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 72, opacity: .3 }}>👴</span>
+          </div>
+        )}
+        {/* Dégradé fondu vers le bas */}
+        <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 120,
+          background: "linear-gradient(to top, rgba(150,60,10,.82) 0%, transparent 100%)",
+          borderRadius: "0 0 28px 28px" }} />
+        {/* Titre par-dessus */}
+        <div style={{ position: "absolute", bottom: 18, left: 20, right: 20 }}>
+          <p style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,.75)",
+            letterSpacing: ".06em", textTransform: "uppercase" }}>Espace souvenirs</p>
+          {editionNom ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+              <input value={nouveauNom} onChange={e => setNouveauNom(e.target.value)}
+                style={{ flex: 1, background: "rgba(255,255,255,.2)",
+                  border: "1.5px solid rgba(255,255,255,.5)", borderRadius: 10,
+                  padding: "6px 10px", fontSize: 18, color: "#fff", fontWeight: 700, outline: "none" }} />
+              <button onClick={() => { modifierNom(capsuleActuelle.id, nouveauNom); setEditionNom(false); }}
+                style={{ background: "rgba(255,255,255,.3)", border: "none", borderRadius: 8,
+                  padding: "6px 12px", color: "#fff", fontWeight: 700, cursor: "pointer" }}>✓</button>
+              <button onClick={() => { setNouveauNom(capsuleActuelle.nom); setEditionNom(false); }}
+                style={{ background: "rgba(255,255,255,.15)", border: "none", borderRadius: 8,
+                  padding: "6px 12px", color: "#fff", cursor: "pointer" }}>✕</button>
+            </div>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 3 }}>
+              <h1 style={{ margin: 0, fontFamily: "'Bricolage Grotesque',sans-serif",
+                fontSize: 28, fontWeight: 800, color: "#fff", letterSpacing: "-.02em", flex: 1 }}>
+                👴 {capsuleActuelle.nom}
+              </h1>
+              {estCreateur && (
+                <button onClick={() => setEditionNom(true)}
+                  style={{ background: "rgba(255,255,255,.2)", border: "none", borderRadius: 8,
+                    padding: "5px 10px", color: "#fff", fontSize: 14, cursor: "pointer" }}>
+                  ✏️
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Contenu scrollable sous la photo ── */}
+      <div style={{ padding: "0 20px" }}>
+
+        {/* Statut + compte à rebours */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
+          <div style={{ background: enCours ? "#FFF5EC" : "#ECFDF5",
+            border: `1.5px solid ${enCours ? "rgba(255,140,90,.5)" : "rgba(16,185,129,.4)"}`,
+            borderRadius: 10, padding: "5px 12px", fontSize: 12, fontWeight: 700,
+            color: enCours ? "#C25A20" : "#059669" }}>
+            {enCours ? "📝 En cours de contributions" : "✅ Prête à découvrir"}
+          </div>
+          {joursJ !== null && joursJ > 0 && (
+            <div style={{ background: "#FFF5EC", border: "1.5px solid rgba(255,140,90,.4)",
+              borderRadius: 10, padding: "5px 12px", fontSize: 12, fontWeight: 700, color: "#C25A20" }}>
+              J−{joursJ} avant l'ouverture
+            </div>
+          )}
+        </div>
+
+        {/* Total depuis le début */}
+        <div style={{ background: "linear-gradient(135deg,#FFF5EC,#FFF0E6)",
+          border: "2px solid rgba(255,140,90,.4)", borderRadius: 18,
+          padding: "14px 16px", marginBottom: 14,
+          display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 800, color: "#A07850",
+              textTransform: "uppercase", letterSpacing: ".06em", marginBottom: 4 }}>
+              Total depuis le début
+            </div>
+            <div style={{ fontSize: 28, fontWeight: 900, color: "#C25A20",
+              fontFamily: "'Bricolage Grotesque',sans-serif", lineHeight: 1 }}>
+              {totalContribs}
+              <span style={{ fontSize: 14, fontWeight: 600, color: "#A07850", marginLeft: 7 }}>
+                souvenir{totalContribs !== 1 ? "s" : ""} partagés
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: "#A07850", marginTop: 4 }}>
+              {nbContribs} ce mois · {papyCapsules.length} capsule{papyCapsules.length > 1 ? "s" : ""}
+            </div>
+          </div>
+          <div style={{ fontSize: 34 }}>🏅</div>
+        </div>
+
+        {/* Bouton Contribuer */}
+        <button
+          onClick={() => allerVers("contribution", capsuleActuelle.id)}
+          style={{ ...S.boutonPrincipal,
+            background: "linear-gradient(135deg,#C25A20,#FF8C5A)",
+            boxShadow: "0 6px 20px rgba(194,90,32,.35)",
+            marginBottom: 12, fontSize: 16, padding: "15px 20px",
+            fontFamily: "'Bricolage Grotesque',sans-serif" }}>
+          ✍️ Contribuer à la capsule du mois →
+        </button>
+
+        {/* Inviter des proches */}
+        {estCreateur && (
+          <button style={{ ...S.boutonSecondaire, marginBottom: 18, marginTop: 0 }}
+            onClick={() => allerVers("inviter", capsuleActuelle.id)}>
+            👥 Inviter des proches à contribuer
+          </button>
+        )}
+
+        {/* Mois précédents */}
+        {moisPrecedents.length > 0 && (
+          <div style={{ marginBottom: 18 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: COULEURS.doux,
+              letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 10 }}>
+              📅 Mois précédents
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {moisPrecedents.map(c => {
+                const nb = c.contributions?.length || 0;
+                const dateMois = (c.dateOuverture || c.dateCreation)
+                  ? new Date(c.dateOuverture || c.dateCreation).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })
+                  : "";
+                const hasPhoto = c.contributions?.find(ct => ct.type === "photo" && ct.media);
+                return (
+                  <button key={c.id} onClick={() => allerVers("detail", c.id)}
+                    style={{ display: "flex", alignItems: "center", gap: 12,
+                      background: "var(--carte-bg)", border: "none", borderRadius: 18,
+                      padding: "12px 14px", cursor: "pointer", width: "100%", textAlign: "left",
+                      boxShadow: "0 4px 14px rgba(46,34,48,.07)" }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+                      overflow: "hidden",
+                      background: hasPhoto ? "none" : "linear-gradient(135deg,#FFE4CC,#FFB37A)",
+                      display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {hasPhoto
+                        ? <img src={hasPhoto.media} alt=""
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        : <span style={{ fontSize: 22 }}>📅</span>}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre,
+                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {c.nom}
+                      </div>
+                      <div style={{ fontSize: 12, color: COULEURS.doux, marginTop: 2 }}>
+                        {nb} souvenir{nb !== 1 ? "s" : ""}{dateMois ? ` · ${dateMois}` : ""}
+                      </div>
+                    </div>
+                    <span style={{ fontSize: 18, color: "#FF8C5A", flexShrink: 0 }}>→</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Paramètres (créateur seulement) */}
+        {estCreateur && (
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 800, color: COULEURS.doux,
+              letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 10 }}>
+              ⚙️ Paramètres
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                background: "var(--carte-bg)", borderRadius: 16, padding: "14px 16px",
+                cursor: "pointer", boxShadow: "0 2px 8px rgba(46,34,48,.05)" }}>
+                <input type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={e => { const f = e.target.files?.[0]; if (f) modifierCouverture(capsuleActuelle.id, f); }} />
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 20 }}>🖼️</span>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre }}>Photo de couverture</div>
+                    <div style={{ fontSize: 12, color: COULEURS.doux }}>Modifier la photo principale</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 18, color: COULEURS.doux }}>›</span>
+              </label>
+              <button onClick={() => allerVers("abonnement")}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between",
+                  background: "var(--carte-bg)", borderRadius: 16, padding: "14px 16px",
+                  border: "none", cursor: "pointer", width: "100%",
+                  boxShadow: "0 2px 8px rgba(46,34,48,.05)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <span style={{ fontSize: 20 }}>💳</span>
+                  <div style={{ textAlign: "left" }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre }}>Gérer l'abonnement</div>
+                    <div style={{ fontSize: 12, color: COULEURS.doux }}>Renouvellement automatique · résiliable</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 18, color: COULEURS.doux }}>›</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN TARIFS IMPRESSION — album papier : mensuel, trimestriel, semestriel, annuel
+// ============================================================================
+function EcranTarifsImpression({ capsule, allerVers }) {
+  const OFFRES = [
+    {
+      id: "mensuel",
+      label: "Tous les mois",
+      icone: "📅",
+      prix: "9,99€",
+      unite: "/mois",
+      pages: "~20 pages",
+      detail: "Un album compact chaque mois — idéal pour suivre l'évolution au fil du temps.",
+      economie: null,
+      populaire: true,
+    },
+    {
+      id: "trimestriel",
+      label: "Tous les 3 mois",
+      icone: "🗓️",
+      prix: "24,99€",
+      unite: "/trimestre",
+      pages: "~60 pages",
+      detail: "Un album saisonnier riche, réunissant 3 mois de souvenirs.",
+      economie: "Économisez 5€ vs mensuel",
+      populaire: false,
+    },
+    {
+      id: "semestriel",
+      label: "Tous les 6 mois",
+      icone: "📆",
+      prix: "44,99€",
+      unite: "/semestre",
+      pages: "~120 pages",
+      detail: "Un beau volume à partager en famille à chaque demi-année.",
+      economie: "Économisez 15€ vs mensuel",
+      populaire: false,
+    },
+    {
+      id: "annuel",
+      label: "Une fois par an",
+      icone: "🎁",
+      prix: "79,99€",
+      unite: "/an",
+      pages: "~240 pages",
+      detail: "Le grand album annuel — un cadeau exceptionnel à offrir ou conserver.",
+      economie: "Économisez 40€ vs mensuel",
+      populaire: false,
+    },
+  ];
+
+  return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="Album papier" onRetour={() => allerVers("detail", capsule?.id)} />
+
+      {/* Hero */}
+      <div style={{ background: "linear-gradient(135deg,#3730a3,#6d28d9)", borderRadius: 20,
+        padding: "20px 18px", marginBottom: 20, textAlign: "center" }}>
+        <div style={{ fontSize: 36, marginBottom: 8 }}>📖</div>
+        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800,
+          fontSize: 18, color: "#fff", marginBottom: 6 }}>
+          Transformez vos souvenirs en album
+        </div>
+        <div style={{ fontSize: 12, color: "rgba(196,181,253,.9)", lineHeight: 1.5 }}>
+          Impression professionnelle · Papier haute qualité · Livraison incluse
+        </div>
+      </div>
+
+      {/* Offres */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {OFFRES.map(o => (
+          <div key={o.id}
+            style={{ background: "var(--carte-bg)", borderRadius: 18,
+              border: o.populaire ? "2px solid #6d28d9" : `1px solid ${COULEURS.bordure}`,
+              boxShadow: o.populaire ? "0 4px 20px rgba(109,40,217,.18)" : "0 2px 10px rgba(46,34,48,.06)",
+              overflow: "hidden" }}>
+            {o.populaire && (
+              <div style={{ background: "linear-gradient(135deg,#3730a3,#6d28d9)",
+                textAlign: "center", padding: "5px 0",
+                fontSize: 11, fontWeight: 800, color: "#fff", letterSpacing: ".05em" }}>
+                ⭐ LE PLUS POPULAIRE
+              </div>
+            )}
+            <div style={{ padding: "14px 16px" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 22 }}>{o.icone}</span>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: COULEURS.encre }}>{o.label}</div>
+                    <div style={{ fontSize: 11, color: COULEURS.doux, marginTop: 1 }}>{o.pages}</div>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <span style={{ fontFamily: "'Bricolage Grotesque',sans-serif",
+                    fontWeight: 900, fontSize: 20, color: o.populaire ? "#6d28d9" : COULEURS.encre }}>
+                    {o.prix}
+                  </span>
+                  <span style={{ fontSize: 11, color: COULEURS.doux }}>{o.unite}</span>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: COULEURS.doux, margin: "0 0 10px", lineHeight: 1.5 }}>
+                {o.detail}
+              </p>
+              {o.economie && (
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#16a34a",
+                  background: "#dcfce7", borderRadius: 8, padding: "3px 10px",
+                  display: "inline-block", marginBottom: 10 }}>
+                  🎉 {o.economie}
+                </div>
+              )}
+              <button
+                style={{ width: "100%", padding: "11px 0", borderRadius: 13, border: "none",
+                  background: o.populaire
+                    ? "linear-gradient(135deg,#3730a3,#6d28d9)"
+                    : "rgba(109,40,217,.08)",
+                  color: o.populaire ? "#fff" : "#6d28d9",
+                  fontWeight: 800, fontSize: 13, cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans',sans-serif" }}
+                onClick={() => alert("Commande bientôt disponible — fonctionnalité en cours d'intégration.")}>
+                Commander {o.label.toLowerCase()} →
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p style={{ textAlign: "center", fontSize: 11, color: COULEURS.doux,
+        margin: "18px 0 0", lineHeight: 1.6 }}>
+        📦 Livraison sous 5–7 jours ouvrés · Résiliable à tout moment
+      </p>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN CHOIX RÔLE PAPY — "Qui êtes-vous ?" avant d'accéder à la capsule
+// ============================================================================
+function EcranChoixRolePapy({ capsule, allerVers }) {
+  return (
+    <div style={S.ecran}>
+      <EnTeteRetour titre="" onRetour={() => allerVers("detail", capsule?.id)} />
+
+      {/* Hero */}
+      <div style={{ textAlign: "center", padding: "10px 0 24px" }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>👴👵</div>
+        <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800,
+          fontSize: 22, color: COULEURS.encre, marginBottom: 8 }}>
+          Bienvenue !
+        </div>
+        <div style={{ fontSize: 14, color: COULEURS.doux, lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
+          Comment souhaitez-vous accéder à la capsule <strong>{capsule?.nom}</strong> ?
+        </div>
+      </div>
+
+      {/* Choix Mamie/Papy */}
+      <button onClick={() => allerVers("vue_papy_simple", capsule?.id)}
+        style={{ width: "100%", borderRadius: 20, border: "2px solid #FF8C5A",
+          background: "linear-gradient(135deg,#FFF0E6,#FFE4CC)",
+          padding: "20px 18px", marginBottom: 14, cursor: "pointer", textAlign: "left" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ fontSize: 36, lineHeight: 1, flexShrink: 0 }}>👴</div>
+          <div>
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800,
+              fontSize: 17, color: "#C25A20", marginBottom: 4 }}>
+              Je suis Mamie ou Papy
+            </div>
+            <div style={{ fontSize: 12, color: "#A07850", lineHeight: 1.5 }}>
+              Vue simplifiée · Faite pour vous · Pas de compte requis
+            </div>
+          </div>
+        </div>
+      </button>
+
+      {/* Choix Contributeur */}
+      <button onClick={() => allerVers("papy")}
+        style={{ width: "100%", borderRadius: 20, border: `1.5px solid ${COULEURS.bordure}`,
+          background: "var(--carte-bg)",
+          padding: "20px 18px", marginBottom: 10, cursor: "pointer", textAlign: "left",
+          boxShadow: "0 4px 14px rgba(46,34,48,.07)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ fontSize: 36, lineHeight: 1, flexShrink: 0 }}>👨‍👩‍👧</div>
+          <div>
+            <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800,
+              fontSize: 17, color: COULEURS.encre, marginBottom: 4 }}>
+              Je suis un contributeur
+            </div>
+            <div style={{ fontSize: 12, color: COULEURS.doux, lineHeight: 1.5 }}>
+              Accès à toutes les capsules mensuelles · Vue complète
+            </div>
+          </div>
+        </div>
+      </button>
+
+      <p style={{ textAlign: "center", fontSize: 11, color: COULEURS.doux,
+        marginTop: 10, lineHeight: 1.6 }}>
+        Votre choix n'est pas définitif — vous pouvez revenir en arrière à tout moment.
+      </p>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN VUE PAPY SIMPLE — interface simplifiée in-app pour Mamie/Papy
+// ============================================================================
+function EcranVuePapySimple({ capsule, capsules, moi, allerVers }) {
+  if (!capsule) return null;
+
+  // Autres capsules papy du même créateur (mois précédents)
+  const autresCapsules = capsules
+    ? capsules.filter(c => c.formule === "papy" && c.id !== capsule.id && c.createurId === capsule.createurId)
+        .sort((a, b) => new Date(b.dateOuverture || 0) - new Date(a.dateOuverture || 0))
+    : [];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      <div style={{ background: "linear-gradient(135deg,#C25A20,#FF8C5A)", padding: "12px 16px",
+        display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,.9)",
+          fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+          👴 Vue Mamie / Papy — {capsule.nom}
+        </div>
+        <button onClick={() => allerVers("choix_role_papy", capsule.id)}
+          style={{ background: "rgba(255,255,255,.2)", border: "none", borderRadius: 999,
+            padding: "5px 12px", fontSize: 12, fontWeight: 700, color: "#fff", cursor: "pointer" }}>
+          ← Retour
+        </button>
+      </div>
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        <EcranPapySimple
+          capsule={capsule}
+          allerVers={allerVers}
+          onTerminer={() => allerVers("choix_role_papy", capsule.id)}
+          autresCapsules={autresCapsules}
+        />
+      </div>
+    </div>
+  );
+}
+
+function EcranApercuPapy({ allerVers }) {
+  const d = new Date().toISOString();
+  const mockCapsule = {
+    id: "preview",
+    nom: "Mamie Joëlle",
+    contributions: [
+      { id: "m1", type: "photo",   media: null,
+        texte: "Les enfants au jardin ce matin — ils pensent à toi ! ☀️",
+        date: d, auteurId: "p1" },
+      { id: "m2", type: "video",   media: null,
+        texte: "Léo fait ses premiers pas ! On a pensé à toi direct 🥹",
+        date: d, auteurId: "p2" },
+      { id: "m3", type: "vocal",   media: null, texte: null,
+        date: d, auteurId: "p1" },
+      { id: "m4", type: "musique", media: null,
+        titre: "La Vie en Rose", artiste: "Édith Piaf",
+        texte: "On a pensé à toi en l'écoutant 💛",
+        date: d, auteurId: "p2" },
+      { id: "m5", type: "message",
+        texte: "Mamie, on t'aime tellement fort. Vivement les prochaines vacances ensemble ! 💛",
+        date: d, auteurId: "p1" },
+    ],
+    participants: [
+      { id: "p1", prenom: "Sarah", couleur: "#F472B6" },
+      { id: "p2", prenom: "Lucas", couleur: "#60A5FA" },
+    ],
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
+      <div style={{ background: "rgba(22,14,26,0.92)", padding: "12px 16px",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        flexShrink: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.9)",
+          fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          Aperçu — vue de Mamie/Papy
+        </div>
+        <button onClick={() => allerVers("creer")}
+          style={{ background: "rgba(255,255,255,0.16)", border: "none", borderRadius: 999,
+            padding: "5px 12px", fontSize: 12, fontWeight: 700, color: "#fff", cursor: "pointer" }}>
+          Fermer ✕
+        </button>
+      </div>
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        <EcranPapySimple capsule={mockCapsule} allerVers={null} onTerminer={() => allerVers("creer")} />
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN PAPY STANDALONE — chargement autonome pour les bénéficiaires sans compte.
+// ============================================================================
+function EcranPapyStandalone({ capsuleId }) {
+  const [capsule, setCapsule] = useState(null);
+  const [enCharge, setEnCharge] = useState(true);
+  const [erreur, setErreur] = useState(false);
+
+  useEffect(() => {
+    async function charger() {
+      const { data, error } = await supabase
+        .from("capsules")
+        .select("*, participants(*), contributions(*, reactions(*))")
+        .eq("id", capsuleId)
+        .single();
+      if (error || !data) setErreur(true);
+      else setCapsule(normaliserCapsule(data));
+      setEnCharge(false);
+    }
+    charger();
+  }, [capsuleId]);
+
+  function allerSortir() {
+    try { localStorage.removeItem("blooom_papy_capsule_id"); } catch {}
+    window.location.reload();
+  }
+
+  if (enCharge) return (
+    <CadreTelephone>
+      <div style={{ display: "flex", flexDirection: "column", height: "100%",
+        alignItems: "center", justifyContent: "center", background: "#FFF8F0" }}>
+        <div style={{ fontSize: 38 }}>⏳</div>
+        <div style={{ fontSize: 16, color: "#A07850", marginTop: 12 }}>
+          Chargement des souvenirs…
+        </div>
+      </div>
+    </CadreTelephone>
+  );
+
+  if (erreur) return (
+    <CadreTelephone>
+      <div style={{ display: "flex", flexDirection: "column", height: "100%",
+        alignItems: "center", justifyContent: "center", textAlign: "center",
+        padding: "24px 28px", background: "#FFF8F0" }}>
+        <div style={{ fontSize: 48 }}>😕</div>
+        <div style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+          fontSize: 20, color: "#5C3D2E", marginTop: 16 }}>
+          Impossible de charger
+        </div>
+        <div style={{ fontSize: 15, color: "#A07850", marginTop: 8, lineHeight: 1.5 }}>
+          Vérifiez votre connexion internet et réessayez.
+        </div>
+        <button onClick={() => window.location.reload()}
+          style={{ marginTop: 24, padding: "14px 28px", background: "#FF8C5A",
+            color: "#fff", border: "none", borderRadius: 16, fontSize: 16,
+            fontWeight: 700, cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          Réessayer
+        </button>
+        <button onClick={allerSortir}
+          style={{ marginTop: 12, background: "none", border: "none",
+            color: "#A07850", fontSize: 14, cursor: "pointer", padding: "8px 0" }}>
+          ← Saisir un autre code
+        </button>
+      </div>
+    </CadreTelephone>
+  );
+
+  return (
+    <CadreTelephone>
+      <EcranPapySimple capsule={capsule} allerVers={null} />
+    </CadreTelephone>
+  );
+}
+
+// ============================================================================
+//  ÉCRAN CONNEXION
+// ============================================================================
 function EcranConnexion() {
-  const [mode, setMode] = useState(null); // null=choix, "inscription", "connexion"
+  const [mode, setMode] = useState(null); // null=choix, "inscription", "connexion", "papy"
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [chargement, setChargement] = useState(false);
   const [confirme, setConfirme] = useState(false);
   const [erreur, setErreur] = useState("");
+  const [codePapy, setCodePapy] = useState("");
 
   function traduitErreur(msg) {
     if (!msg) return "Une erreur est survenue.";
@@ -4225,6 +9910,62 @@ function EcranConnexion() {
     if (error) setErreur(traduitErreur(error.message));
     // Si succès : onAuthStateChange dans App() prend le relai automatiquement
   }
+
+  async function rejoindrePapy() {
+    if (!codePapy.trim()) return;
+    setChargement(true); setErreur("");
+    const { data: capsule, error } = await supabase
+      .from("capsules")
+      .select("id, nom, formule, code")
+      .eq("code", codePapy.trim().toUpperCase())
+      .maybeSingle();
+    setChargement(false);
+    if (error || !capsule) {
+      setErreur("Code introuvable. Vérifiez le code et réessayez.");
+      return;
+    }
+    try { localStorage.setItem("blooom_papy_capsule_id", capsule.id); } catch {}
+    window.location.reload();
+  }
+
+  // Mode saisie de code Papy
+  if (mode === "papy") return (
+    <CadreTelephone>
+      <div style={{ ...S.ecran, background: "#FFF8F0", justifyContent: "center" }}>
+        <EnTeteRetour titre="" onRetour={() => { setMode(null); setErreur(""); setCodePapy(""); }} />
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 52 }}>👴👵</div>
+          <h1 style={{ fontFamily: "'Bricolage Grotesque', sans-serif", fontWeight: 800,
+            fontSize: 24, color: "#5C3D2E", marginTop: 10, lineHeight: 1.2 }}>
+            Vos souvenirs
+          </h1>
+          <p style={{ fontSize: 15, color: "#A07850", marginTop: 8, lineHeight: 1.6 }}>
+            Saisissez le code donné par votre famille pour voir vos souvenirs.
+          </p>
+        </div>
+        <label style={{ ...S.label, fontSize: 15, color: "#7C5C43" }}>Votre code</label>
+        <input
+          style={{ ...S.input, fontSize: 26, textAlign: "center", letterSpacing: 8,
+            fontWeight: 800, textTransform: "uppercase", color: "#5C3D2E", padding: "16px 20px" }}
+          placeholder="Ex. ABCD12"
+          value={codePapy}
+          maxLength={6}
+          onChange={e => setCodePapy(e.target.value.toUpperCase())}
+          autoFocus
+        />
+        {erreur && <p style={{ ...S.aide, color: COULEURS.corail, textAlign: "center" }}>⚠ {erreur}</p>}
+        <button
+          style={{ ...S.boutonPrincipal, marginTop: 16, padding: "16px 0", fontSize: 17,
+            background: "linear-gradient(135deg, #FF8C5A 0%, #FFAA7A 100%)",
+            boxShadow: "0 10px 24px rgba(255,140,90,0.35)",
+            ...(!codePapy.trim() || chargement ? S.boutonDesactive : {}) }}
+          disabled={!codePapy.trim() || chargement}
+          onClick={rejoindrePapy}>
+          {chargement ? "Vérification…" : "Voir mes souvenirs →"}
+        </button>
+      </div>
+    </CadreTelephone>
+  );
 
   // Confirmation envoyée
   if (confirme) return (
@@ -4265,6 +10006,14 @@ function EcranConnexion() {
         <button style={S.boutonSecondaire} onClick={() => { setMode("connexion"); setErreur(""); }}>
           Se connecter
         </button>
+        <button
+          onClick={() => { setMode("papy"); setErreur(""); }}
+          style={{ width: "100%", background: "#FFF8F0", color: "#7C5C43",
+            border: "1.5px solid #F5C89A", borderRadius: 16, padding: "13px 0",
+            fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 12,
+            fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          👴👵 J'ai un code famille
+        </button>
       </div>
     </CadreTelephone>
   );
@@ -4296,6 +10045,14 @@ function EcranConnexion() {
         >
           {chargement ? "…" : estInscription ? "Créer mon compte" : "Se connecter"}
         </button>
+
+        {/* Message de confiance sous le formulaire — réduit l'anxiété liée à la création de compte */}
+        <p style={{ textAlign: "center", fontSize: 14, color: COULEURS.encre, fontWeight: 600, marginTop: 22, lineHeight: 1.5 }}>
+          🔐 Vos souvenirs sont privés, chiffrés, et n'appartiennent qu'à vous.
+        </p>
+        <p style={{ textAlign: "center", fontSize: 11, color: COULEURS.doux, marginTop: 6, letterSpacing: 0.4 }}>
+          Zéro publicité · Hébergé en Europe · Suppression garantie
+        </p>
       </div>
     </CadreTelephone>
   );
@@ -4328,8 +10085,12 @@ export default function App() {
   const [notifications, setNotifications] = useState([]);
   const [panneauNotifs, setPanneauNotifs] = useState(false);
   const [codePrefill, setCodePrefill] = useState(null);
+  const [paywallType, setPaywallType] = useState(null);
   const [maintenance, setMaintenance] = useState(false);
   const [maintenanceMsg, setMaintenanceMsg] = useState("L'application est en maintenance. Revenez bientôt !");
+  const [packSucces, setPackSucces] = useState(null);
+  const [gami, setGami] = useState(null);
+  const [gamiUnlock, setGamiUnlock] = useState(null);
 
   // Vérifie le mode maintenance au démarrage et écoute les changements en temps réel
   useEffect(() => {
@@ -4359,7 +10120,7 @@ export default function App() {
   // Enregistre le token push et écoute les taps sur notifications (natif seulement)
   useEffect(() => {
     if (!session || !Capacitor.isNativePlatform()) return;
-    let listeners: { remove: () => void }[] = [];
+    let listeners = [];
 
     PushNotifications.requestPermissions().then(({ receive }) => {
       if (receive !== "granted") return;
@@ -4382,19 +10143,35 @@ export default function App() {
     return () => { listeners.forEach(l => l.remove()); };
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Capture le code parrain depuis l'URL web au premier chargement (?parrain=XXXXXXXX)
+  // Capture le code parrain et détecte le retour Stripe depuis l'URL
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const parrain = params.get("parrain");
       if (parrain) localStorage.setItem("blooom_parrain", parrain.toUpperCase());
+      if (params.get("checkout") === "success") {
+        const pack = params.get("pack") || "occasion";
+        window.history.replaceState({}, "", window.location.pathname);
+        setPackSucces(pack);
+      }
     } catch {}
   }, []);
+
+  // Navigue vers l'écran de création du pack une fois l'utilisateur connecté et les données chargées
+  useEffect(() => {
+    if (!packSucces || chargement || !session) return;
+    // Crédite les points et badges pour les packs Inoubliable et Mariage
+    if (packSucces === "occasion" || packSucces === "mariage") {
+      incrementerGami({ points: 4, packs_inoubliables_achetes: 1 });
+    }
+    allerVers(packSucces === "mariage" ? "succes_mariage" : packSucces === "papy" ? "succes_papy" : "succes_pack");
+    setPackSucces(null);
+  }, [packSucces, chargement, session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Gère les Universal Links / App Links (lien d'invitation ouvert depuis le téléphone)
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return;
-    let handler: { remove: () => void } | null = null;
+    let handler = null;
 
     CapApp.addListener("appUrlOpen", ({ url }) => {
       try {
@@ -4408,7 +10185,7 @@ export default function App() {
     }).then(l => { handler = l; });
 
     return () => { if (handler) handler.remove(); };
-  }, [allerVers]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Écoute les changements de session (connexion / déconnexion / lien magique cliqué)
   useEffect(() => {
@@ -4466,13 +10243,15 @@ export default function App() {
 
   async function chargerDonnees() {
     setChargement(true);
-    const [{ data: profil }, { data: capsulesDB }] = await Promise.all([
+    const [{ data: profil }, { data: capsulesDB }, { data: gamiDB }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle(),
       supabase.from("capsules")
-        .select("*, participants(*), contributions(*, reactions(*))")
+        .select("*, participants(*), contributions(*, reactions(*)), createur:created_by(abonnement, abonnement_expire_at)")
         .order("created_at", { ascending: false }),
+      supabase.from("gamification").select("*").eq("user_id", session.user.id).maybeSingle(),
     ]);
     if (profil) setMoi(normaliserProfil(profil));
+    setGami(gamiDB || GAMI_VIDE);
     if (capsulesDB) {
       const liste = capsulesDB.map(normaliserCapsule);
       // Applique la photo de profil sur toutes les entrées participant de l'utilisateur
@@ -4486,6 +10265,63 @@ export default function App() {
     setChargement(false);
     // Charge les notifications après que les capsules sont disponibles
     if (capsulesDB) chargerNotifsPour(capsulesDB.map(normaliserCapsule));
+  }
+
+  // ── Suppression de compte complète (RGPD) ──────────────────────────────────
+  // Ordre : 1. récupérer les URLs médias, 2. supprimer fichiers Storage,
+  // 3. enregistrer dans suppressions, 4. supprimer données BDD, 5. déconnecter.
+  async function supprimerCompte() {
+    const userId = session.user.id;
+    const email  = session.user.email;
+
+    // Récupère les chemins des médias uploadés par l'utilisateur
+    const { data: contribs } = await supabase
+      .from("contributions")
+      .select("media_url")
+      .eq("auteur_id", userId);
+
+    // Extrait les chemins relatifs depuis les URLs publiques Supabase Storage
+    const cheminMedias = (contribs || [])
+      .filter(c => c.media_url)
+      .map(c => {
+        try {
+          const u = new URL(c.media_url);
+          const marker = "/object/public/medias/";
+          const idx = u.pathname.indexOf(marker);
+          return idx >= 0
+            ? decodeURIComponent(u.pathname.slice(idx + marker.length).split("?")[0])
+            : null;
+        } catch { return null; }
+      })
+      .filter(Boolean);
+
+    // Supprime les fichiers médias (photos, vidéos, dessins, vocaux)
+    if (cheminMedias.length > 0) {
+      await supabase.storage.from("medias").remove(cheminMedias);
+    }
+
+    // Supprime l'avatar — nommé {userId}.{ext} dans le bucket avatars
+    const { data: avatars } = await supabase.storage.from("avatars").list("", { search: userId });
+    if (avatars?.length) {
+      await supabase.storage.from("avatars").remove(avatars.map(f => f.name));
+    }
+
+    // Enregistre la suppression pour traçabilité RGPD (avant de supprimer le profil)
+    await supabase.from("suppressions").insert({
+      email,
+      user_id: userId,
+      requested_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+    });
+
+    // Supprime dans l'ordre pour respecter les contraintes FK
+    await supabase.from("contributions").delete().eq("auteur_id", userId);
+    await supabase.from("participants").delete().eq("user_id", userId);
+    await supabase.from("parrainages").delete().or(`parrain_id.eq.${userId},filleul_id.eq.${userId}`);
+    await supabase.from("profiles").delete().eq("id", userId);
+
+    // Déconnecte l'utilisateur (la suppression du compte auth est faite côté Supabase admin)
+    await supabase.auth.signOut();
   }
 
   async function chargerNotifsPour(listeCapsules) {
@@ -4530,15 +10366,6 @@ export default function App() {
     });
   }
 
-  function repondreQuiz(valeur) {
-    if (!capsuleActiveId) return;
-    const capsule = capsules.find(c => c.id === capsuleActiveId);
-    const participant = capsule?.participants.find(p => p.userId === session.user.id);
-    if (!participant) return;
-    supabase.from("quiz_reponses").insert({
-      capsule_id: capsuleActiveId, participant_id: participant.id, reponse: valeur,
-    });
-  }
 
   const allerVers = useCallback((nouvelEcran, id = null) => {
     setEcran(prev => { setEcranPrecedent(prev); return nouvelEcran; });
@@ -4594,55 +10421,100 @@ export default function App() {
     }
   }
 
+  // --- Gamification ---
+  async function incrementerGami(delta) {
+    if (!session) return;
+    const ancien = gami || GAMI_VIDE;
+    const anciensBadges = badgesDebloques(ancien);
+    const nouvel = {
+      ...ancien,
+      points_total:               ancien.points_total               + (delta.points                     || 0),
+      capsules_creees:            ancien.capsules_creees            + (delta.capsules_creees            || 0),
+      souvenirs_deposes:          ancien.souvenirs_deposes          + (delta.souvenirs_deposes          || 0),
+      parrainages_acceptes:       ancien.parrainages_acceptes       + (delta.parrainages_acceptes       || 0),
+      capsules_papy_ouvertes:     ancien.capsules_papy_ouvertes     + (delta.capsules_papy_ouvertes     || 0),
+      packs_inoubliables_achetes: ancien.packs_inoubliables_achetes + (delta.packs_inoubliables_achetes || 0),
+    };
+    nouvel.niveau = niveauDepuisPoints(nouvel.points_total).niveau;
+    setGami(nouvel);
+
+    if (nouvel.niveau > ancien.niveau) {
+      setGamiUnlock({ type: "niveau", niveau: nouvel.niveau });
+    } else {
+      const nouveauxBadges = badgesDebloques(nouvel).filter(b => !anciensBadges.some(a => a.slug === b.slug));
+      if (nouveauxBadges.length) setGamiUnlock({ type: "badge", badges: nouveauxBadges });
+    }
+
+    supabase.rpc("incrementer_gamification", {
+      p_user_id:                    session.user.id,
+      p_points:                     delta.points                     || 0,
+      p_capsules_creees:            delta.capsules_creees            || 0,
+      p_souvenirs_deposes:          delta.souvenirs_deposes          || 0,
+      p_parrainages_acceptes:       delta.parrainages_acceptes       || 0,
+      p_capsules_papy_ouvertes:     delta.capsules_papy_ouvertes     || 0,
+      p_packs_inoubliables_achetes: delta.packs_inoubliables_achetes || 0,
+    }).catch(err => console.error("incrementerGami:", err));
+  }
+
   // --- Capsules ---
-  async function creerCapsule({ nom, type, dateOuverture, couverture }) {
+  async function creerCapsule({ nom, type, dateOuverture, couverture, formule: formuleParam, ecranSucces }) {
+    const formule = formuleParam || "gratuit";
+    if (formule === "gratuit") {
+      const capsulesActives = capsules.filter(c => c.createurId === session.user.id && !c.ouverte && c.formule === "gratuit").length;
+      const { peut } = peutCreerCapsuleGratuite(capsulesActives);
+      if (!peut) { setPaywallType("capsule_limite_gratuit"); return null; }
+    }
     const couverture_url = couverture ? await uploaderFichier("couvertures", couverture, genererId()) : null;
     const capsuleId = crypto.randomUUID();
+    const code = genererCode();
+    const quotas = getQuotasCapsule(formule);
+    const now = new Date().toISOString();
     const { error: errCapsule } = await supabase.from("capsules").insert({
       id: capsuleId, nom, type, date_ouverture: dateOuverture || null,
-      couverture_url, code: genererCode(), created_by: session.user.id,
+      couverture_url, code, created_by: session.user.id,
+      formule,
+      quota_photos: quotas.quota_photos, quota_videos: quotas.quota_videos,
+      quota_vocaux: quotas.quota_vocaux, quota_participants: quotas.quota_participants,
+      duree_video_max_s: quotas.duree_video_max_s, duree_vocal_max_s: quotas.duree_vocal_max_s,
+      compte_photos: 0, compte_videos: 0, compte_vocaux: 0,
     });
     if (errCapsule) throw new Error("Capsule : " + errCapsule.message);
+    const participantId = crypto.randomUUID();
     const { error: errParticipant } = await supabase.from("participants").insert({
+      id: participantId,
       capsule_id: capsuleId, user_id: session.user.id,
       prenom: moi.prenom, description: moi.description,
       photo_url: moi.photo, couleur: moi.couleur,
     });
     if (errParticipant) throw new Error("Participant : " + errParticipant.message);
-    await chargerDonnees();
-
-    // Conversion parrainage : si c'est la première capsule créée par l'utilisateur
-    // et qu'un parrainage non converti existe et a moins de 7 jours
-    const premiereCapsule = capsules.filter(c => c.createurId === session.user.id).length === 0;
-    if (premiereCapsule) {
-      const { data: parrainage } = await supabase
-        .from("parrainages")
-        .select("id, parrain_id, created_at")
-        .eq("filleul_id", session.user.id)
-        .eq("converti", false)
-        .maybeSingle();
-
-      if (parrainage) {
-        const joursDepuis = (Date.now() - new Date(parrainage.created_at).getTime()) / 86_400_000;
-        if (joursDepuis <= 7) {
-          // Marque le parrainage comme converti
-          await supabase.from("parrainages").update({
-            converti: true, converti_at: new Date().toISOString(),
-          }).eq("id", parrainage.id);
-          // Ajoute 30 jours de Plus au parrain (RPC SECURITY DEFINER)
-          await supabase.rpc("ajouter_plus_parrain", { p_parrain_id: parrainage.parrain_id });
-          // Recharge le profil pour mettre à jour plusExpiresAt si c'est le filleul lui-même
-          chargerDonnees();
-        }
-      }
-    }
-
+    // Construction locale — évite chargerDonnees() et son chargement=true qui démonterait l'écran
+    const nouvelleCapsule = normaliserCapsule({
+      id: capsuleId, nom, type, date_ouverture: dateOuverture || null,
+      couverture_url, code, created_by: session.user.id, created_at: now,
+      ouverte: false, formule,
+      quota_photos: quotas.quota_photos, quota_videos: quotas.quota_videos,
+      quota_vocaux: quotas.quota_vocaux, quota_participants: quotas.quota_participants,
+      duree_video_max_s: quotas.duree_video_max_s, duree_vocal_max_s: quotas.duree_vocal_max_s,
+      compte_photos: 0, compte_videos: 0, compte_vocaux: 0,
+      participants: [{ id: participantId, capsule_id: capsuleId, user_id: session.user.id,
+        prenom: moi.prenom, description: moi.description, photo_url: moi.photo, couleur: moi.couleur }],
+      contributions: [],
+    });
+    setCapsules(prev => [nouvelleCapsule, ...prev]);
+    allerVers(ecranSucces || "detail", capsuleId);
+    incrementerGami({ points: 2, capsules_creees: 1 });
     return capsuleId;
   }
 
   async function modifierDate(capsuleId, date) {
     await supabase.from("capsules").update({ date_ouverture: date || null }).eq("id", capsuleId);
     setCapsules(l => l.map(c => c.id === capsuleId ? { ...c, dateOuverture: date } : c));
+  }
+
+  async function modifierNom(capsuleId, nom) {
+    if (!nom.trim()) return;
+    await supabase.from("capsules").update({ nom: nom.trim() }).eq("id", capsuleId);
+    setCapsules(l => l.map(c => c.id === capsuleId ? { ...c, nom: nom.trim() } : c));
   }
 
   async function modifierCouverture(capsuleId, photo) {
@@ -4653,10 +10525,33 @@ export default function App() {
     setCapsules(l => l.map(c => c.id === capsuleId ? { ...c, couverture: couverture_url } : c));
   }
 
+  async function supprimerCapsule(capsuleId) {
+    await supabase.from("contributions").delete().eq("capsule_id", capsuleId);
+    await supabase.from("participants").delete().eq("capsule_id", capsuleId);
+    await supabase.from("capsules").delete().eq("id", capsuleId);
+    setCapsules(l => l.filter(c => c.id !== capsuleId));
+    allerVers("capsules");
+  }
+
+  async function marierParticipant(capsuleId, participantId, estMarie) {
+    const capsule = capsules.find(c => c.id === capsuleId);
+    if (!capsule || capsule.createurId !== moi?.id) return;
+    await supabase.from("participants").update({ marie: estMarie }).eq("id", participantId);
+    setCapsules(l => l.map(c => c.id === capsuleId
+      ? { ...c, participants: c.participants.map(p => p.id === participantId ? { ...p, marie: estMarie } : p) }
+      : c
+    ));
+  }
+
   // --- Participants ---
   async function ajouterParticipant(capsuleId, { prenom, description, photo }) {
-    const photo_url = photo ? await uploaderFichier("avatars", photo, genererId()) : null;
     const capsule = capsules.find(c => c.id === capsuleId);
+    const maxP = capsule?.quota_participants ?? 9999;
+    if (capsule && capsule.participants.length >= maxP) {
+      setPaywallType("quota_atteint");
+      return null;
+    }
+    const photo_url = photo ? await uploaderFichier("avatars", photo, genererId()) : null;
     const couleur = COULEURS_AVATAR[(capsule?.participants.length || 0) % COULEURS_AVATAR.length];
     const participantId = crypto.randomUUID();
     const { error } = await supabase.from("participants").insert({
@@ -4728,13 +10623,26 @@ export default function App() {
       media_url,
       filtre: contribution.filtre,
       ambiance: contribution.ambiance || null,
+      ...(contribution.date ? { created_at: contribution.date } : {}),
     }).select().single();
     if (data) {
-      setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
-        ...c, contributions: [...c.contributions, normaliserContribution({ ...data, reactions: [] })],
-      }));
-      // Jalons : notifie tous les participants à 10, 20, 50 contributions
+      const typeToField = { photo: "compte_photos", video: "compte_videos", vocal: "compte_vocaux" };
+      const field = typeToField[contribution.type];
       const capsule = capsules.find(c => c.id === capsuleId);
+      const nouvelleContrib = normaliserContribution({ ...data, reactions: [] });
+      const newCompte = field && capsule ? (capsule[field] ?? 0) + 1 : null;
+      if (field && newCompte !== null) {
+        supabase.from("capsules").update({ [field]: newCompte }).eq("id", capsuleId);
+        setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
+          ...c, [field]: newCompte, contributions: [...c.contributions, nouvelleContrib],
+        }));
+      } else {
+        setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
+          ...c, contributions: [...c.contributions, nouvelleContrib],
+        }));
+      }
+      incrementerGami({ points: 1, souvenirs_deposes: 1 });
+      // Jalons : notifie tous les participants à 10, 20, 50 contributions
       const nbApres = (capsule?.contributions.length || 0) + 1;
       if ([10, 20, 50].includes(nbApres) && capsule) {
         for (const p of capsule.participants) {
@@ -4750,14 +10658,17 @@ export default function App() {
   async function ouvrirCapsule(capsuleId) {
     await supabase.from("capsules").update({ ouverte: true }).eq("id", capsuleId);
     setCapsules(l => l.map(c => c.id === capsuleId ? { ...c, ouverte: true } : c));
-    // Notifie tous les participants (sauf l'ouvreur) que la capsule est ouverte
     const capsule = capsules.find(c => c.id === capsuleId);
+    if (capsule?.formule === "papy") {
+      incrementerGami({ points: 5, capsules_papy_ouvertes: 1 });
+    }
+    // Notifie tous les participants (sauf l'ouvreur) que la capsule est ouverte
     if (capsule) {
       for (const p of capsule.participants.filter(p => p.userId !== session?.user?.id)) {
         insererNotification(p.id, capsuleId, `🎉 La capsule « ${capsule.nom} » est maintenant ouverte !`, "ouverture");
       }
     }
-    allerVers("quiz_ouverture", capsuleId);
+    allerVers("animation_ouverture", capsuleId);
   }
 
   // Enregistre le vote (gagné/perdu + commentaire) d'un participant sur un pari. Définitif.
@@ -4829,6 +10740,20 @@ export default function App() {
     }));
   }
 
+  async function acheterUpgradeMedia(upgradeType, capsuleId) {
+    const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+      body: {
+        type: upgradeType,
+        user_id: moi?.id,
+        capsule_id: capsuleId,
+        success_url: `${window.location.origin}?checkout=success`,
+        cancel_url:  `${window.location.origin}?checkout=cancelled`,
+      },
+    });
+    if (error || !data?.url) throw new Error(error?.message || "Erreur création session");
+    window.location.href = data.url;
+  }
+
   const capsuleActive = capsules.find(c => c.id === capsuleActiveId);
 
   if (maintenance) return (
@@ -4846,16 +10771,31 @@ export default function App() {
   );
 
   if (!sessionPrete || chargement) return <CadreTelephone vars={vars}><div style={S.ecran} /></CadreTelephone>;
-  if (!session) return <EcranConnexion />;
+  if (!session) {
+    const papyId = (() => { try { return localStorage.getItem("blooom_papy_capsule_id"); } catch { return null; } })();
+    if (papyId) return <EcranPapyStandalone capsuleId={papyId} />;
+    return <EcranConnexion />;
+  }
   if (!moi) return <CadreTelephone vars={vars}><EcranBienvenue creerMoi={creerMoi} /></CadreTelephone>;
 
-  const afficherOnglets = ["capsules", "profil", "parametres"].includes(ecran);
+  // La barre de navigation n'apparaît que sur les écrans principaux
+  const afficherOnglets = ["capsules", "creer", "papy", "profil"].includes(ecran);
+  const hasPapy = capsules.some(c =>
+    c.formule === "papy" &&
+    (c.createurId === moi?.id || c.participants.some(p => p.userId === moi?.id))
+  );
 
   return (
     <CadreTelephone vars={vars}>
       {ecran === "capsules" && <EcranCapsules capsules={capsules} moi={moi} allerVers={allerVers} notifications={notifications} onOuvrirNotifs={() => setPanneauNotifs(true)} />}
-      {ecran === "profil" && <EcranProfil moi={moi} capsules={capsules} modifierMoi={modifierMoi} />}
-      {ecran === "parametres" && <EcranParametres palette={palette} mode={mode} onPalette={changerPalette} onMode={changerMode} />}
+      {ecran === "profil"          && <EcranProfil moi={moi} capsules={capsules} gami={gami} modifierMoi={modifierMoi} allerVers={allerVers} />}
+      {ecran === "modifier_profil" && <EcranModifierProfil moi={moi} modifierMoi={modifierMoi} allerVers={allerVers} />}
+      {ecran === "confidentialite" && <EcranConfidentialite allerVers={allerVers} session={session} onSupprimerCompte={supprimerCompte} />}
+      {ecran === "abonnement"   && <EcranAbonnement moi={moi} allerVers={allerVers} />}
+      {ecran === "offrir"       && <EcranOffrir moi={moi} allerVers={allerVers} />}
+      {ecran === "activer_code" && <EcranActiverCode moi={moi} allerVers={allerVers} onCodeActive={chargerDonnees} />}
+      {ecran === "creer" && <EcranCreer moi={moi} capsules={capsules} allerVers={allerVers} creerCapsule={creerCapsule} onPaywall={setPaywallType} ecranPrecedent={ecranPrecedent} />}
+      {ecran === "parametres" && <EcranParametres palette={palette} mode={mode} onPalette={changerPalette} onMode={changerMode} allerVers={allerVers} ecranPrecedent={ecranPrecedent} />}
       {ecran === "creation" && <EcranCreation allerVers={allerVers} creerCapsule={creerCapsule} />}
       {ecran === "rejoindre" && (
         <EcranRejoindre moi={moi} allerVers={allerVers}
@@ -4870,22 +10810,81 @@ export default function App() {
       )}
       {ecran === "detail" && (
         <EcranDetail capsule={capsuleActive} moi={moi} allerVers={allerVers} ouvrirCapsule={ouvrirCapsule}
-          modifierDate={modifierDate} modifierCouverture={modifierCouverture} editerParticipant={editerParticipant} voterPari={voterPari} />
+          modifierDate={modifierDate} modifierNom={modifierNom} modifierCouverture={modifierCouverture}
+          editerParticipant={editerParticipant} voterPari={voterPari} onPaywall={setPaywallType}
+          insererNotification={insererNotification} supprimerCapsule={supprimerCapsule}
+          marierParticipant={marierParticipant}
+          capsulesLiees={capsuleActive?.formule === "papy"
+            ? capsules.filter(c => c.formule === "papy" && c.id !== capsuleActive.id && c.participants.some(p => p.userId === moi?.id))
+            : undefined} />
       )}
       {ecran === "contribution" && (
         <EcranContribution capsule={capsuleActive} moi={moi} allerVers={allerVers}
-          ajouterContribution={ajouterContribution} editerParticipant={editerParticipant} />
+          ajouterContribution={ajouterContribution} editerParticipant={editerParticipant}
+          onUpgradeMedia={(capsuleId) => allerVers("upgrade_media", capsuleId)} />
       )}
-      {ecran === "quiz_ouverture" && (
-        <EcranQuizOuverture capsule={capsuleActive} allerVers={allerVers} onRepondre={repondreQuiz} />
+      {ecran === "upgrade_media" && (
+        <EcranUpgradeMedia capsule={capsuleActive} allerVers={allerVers} acheterUpgradeMedia={acheterUpgradeMedia} ecranPrecedent={ecranPrecedent} />
       )}
-      {ecran === "ouverture" && <EcranOuverture capsule={capsuleActive} moi={moi} allerVers={allerVers} reagir={reagir} voterPari={voterPari} voterFavori={voterFavori} premiereFois={ecranPrecedent === "animation_ouverture"} />}
-      {ecran === "animation_ouverture" && <AnimationOuverture capsule={capsuleActive} allerVers={allerVers} />}
-      {afficherOnglets && <BarreOnglets actif={ecran} allerVers={allerVers} />}
+      {ecran === "succes_pack" && (
+        <EcranSuccesPack creerCapsule={creerCapsule} allerVers={allerVers} />
+      )}
+      {ecran === "succes_mariage" && (
+        <EcranSuccesMariage creerCapsule={creerCapsule} allerVers={allerVers} />
+      )}
+      {ecran === "succes_papy" && (
+        <EcranSuccesPapy creerCapsule={creerCapsule} allerVers={allerVers} />
+      )}
+      {ecran === "papy" && (
+        <EcranPapy capsules={capsules} moi={moi} allerVers={allerVers}
+          creerCapsule={creerCapsule} modifierNom={modifierNom} modifierCouverture={modifierCouverture} />
+      )}
+      {ecran === "tarifs_impression" && (
+        <EcranTarifsImpression capsule={capsuleActive} allerVers={allerVers} />
+      )}
+      {ecran === "choix_role_papy" && (
+        <EcranChoixRolePapy capsule={capsuleActive} allerVers={allerVers} />
+      )}
+      {ecran === "vue_papy_simple" && (
+        <EcranVuePapySimple capsule={capsuleActive} capsules={capsules} moi={moi} allerVers={allerVers} />
+      )}
+      {ecran === "qr_mariage" && (
+        <EcranQrMariage capsule={capsuleActive} allerVers={allerVers} />
+      )}
+
+      {ecran === "ouverture" && (() => {
+        if (!capsuleActive) { allerVers("capsules"); return null; }
+        if (capsuleActive.formule === "mariage") {
+          const mp = capsuleActive.participants.find(p => p.userId === moi?.id);
+          if (!mp?.marie) { allerVers("detail", capsuleActive.id); return null; }
+        }
+        return <EcranOuverture capsule={capsuleActive} moi={moi} allerVers={allerVers} reagir={reagir} voterPari={voterPari} voterFavori={voterFavori} premiereFois={ecranPrecedent === "animation_ouverture"} />;
+      })()}
+      {ecran === "animation_ouverture" && capsuleActive?.formule === "mariage" && <AnimationOuvertureMariage capsule={capsuleActive} allerVers={allerVers} />}
+      {ecran === "animation_ouverture" && capsuleActive?.formule !== "mariage" && <AnimationOuverture capsule={capsuleActive} allerVers={allerVers} />}
+      {ecran === "senior" && <EcranSenior capsule={capsuleActive} moi={moi} allerVers={allerVers} reagir={reagir} />}
+      {ecran === "papy_simple" && (
+        <EcranPapySimple capsule={capsuleActive} allerVers={allerVers}
+          autresCapsules={capsules.filter(c => c.id !== capsuleActive?.id)} />
+      )}
+      {ecran === "apercu_papy" && (
+        <EcranApercuPapy allerVers={allerVers} />
+      )}
+      {ecran === "admin" && moi?.isAdmin && (
+        <EcranAdmin allerVers={allerVers} />
+      )}
+      {ecran === "badges" && <EcranBadges gami={gami} allerVers={allerVers} />}
+
+      {gamiUnlock && <GamiToast unlock={gamiUnlock} onFermer={() => setGamiUnlock(null)} />}
+
+      {afficherOnglets && <BarreOnglets actif={ecran} allerVers={allerVers} hasPapy={hasPapy} />}
 
       {panneauNotifs && (
         <PanneauNotifications notifications={notifications} onMarquerLue={marquerLue}
           onFermer={() => setPanneauNotifs(false)} allerVers={allerVers} />
+      )}
+      {paywallType && (
+        <ModalPaywall type={paywallType} moi={moi} allerVers={allerVers} onFermer={() => setPaywallType(null)} />
       )}
       {notifPari && (
         <div style={{ position: "absolute", bottom: afficherOnglets ? 84 : 16, left: 12, right: 12, zIndex: 300,
@@ -4936,7 +10935,13 @@ function CadreTelephone({ children, vars }) {
         @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         ::-webkit-scrollbar { width: 0; }
+        .scrollbar-pack::-webkit-scrollbar { width: 4px; }
+        .scrollbar-pack::-webkit-scrollbar-track { background: transparent; }
+        .scrollbar-pack::-webkit-scrollbar-thumb { background: rgba(46,34,48,0.18); border-radius: 99px; }
+        .scrollbar-pack { scrollbar-width: thin; scrollbar-color: rgba(46,34,48,0.18) transparent; }
         input,textarea { color-scheme: light dark; }
+        @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        @keyframes pulseCercle { 0%,100% { transform: scale(0.75); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 1; } }
         @keyframes diceRoll { from { transform: rotate(-20deg) scale(1); } to { transform: rotate(20deg) scale(1.15); } }
         @keyframes pulseLogo { 0%,100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.12); opacity: 1; } }
         @keyframes zoomDoux { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -4987,7 +10992,12 @@ function CadreTelephone({ children, vars }) {
         /* Trait de pinceau de gauche à droite — dessin */
         @keyframes animTraitPinceau { 0% { width:0; opacity:0; } 50% { opacity:1; } 100% { width:90%; opacity:0; } }
       `}</style>
-      <div style={S.telephone}>{children}</div>
+      {/* La bannière cookies est positionnée en absolute dans le cadre téléphone —
+          elle apparaît sur tous les écrans à la première visite. */}
+      <div style={S.telephone}>
+        {children}
+        <BanniereCookies />
+      </div>
     </div>
   );
 }
@@ -5055,7 +11065,7 @@ const S = {
   boutonCouverture: { position: "absolute", bottom: 10, right: 10, background: "rgba(0,0,0,0.5)", color: "#fff", borderRadius: 999, padding: "8px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", backdropFilter: "blur(4px)" },
 
   grilleTypes: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 },
-  tuileType: { background: "#fff", border: "2px solid transparent", borderRadius: 14, padding: "12px 6px", cursor: "pointer", textAlign: "center", boxShadow: "0 3px 10px rgba(46,34,48,0.06)" },
+  tuileType: { background: "#fff", border: "2px solid transparent", borderRadius: 14, padding: "12px 6px", cursor: "pointer", textAlign: "center", boxShadow: "0 3px 10px rgba(46,34,48,0.06)", outline: "none", WebkitTapHighlightColor: "transparent", WebkitAppearance: "none" },
   tuileIcone: { width: 40, height: 40, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, margin: "0 auto" },
   tuileTypeNom: { fontSize: 11, fontWeight: 600, marginTop: 6, lineHeight: 1.3 },
 

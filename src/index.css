@@ -1,1 +1,4 @@
 body { margin: 0; }
+button { -webkit-tap-highlight-color: transparent; }
+button:focus, button:focus-visible, button:active { outline: none !important; box-shadow: none; }
+* { -webkit-tap-highlight-color: transparent; }
