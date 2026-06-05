@@ -105,9 +105,11 @@ function useRevealChildren(selector = '[data-reveal]') {
 function Logo({ taille = 32, mode = 'dark' }) {
   const col = mode === 'dark' ? C.txtLight : C.txtDark
   return (
-    <span style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: taille, lineHeight: 1, letterSpacing: -1, userSelect: 'none' }}>
+    <span style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: taille, lineHeight: 1, letterSpacing: 1, userSelect: 'none' }}>
       <span style={{ color: col }}>Bl</span>
-      <span style={{ background: C.grad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>ooo</span>
+      <span style={{ color: C.orange }}>o</span>
+      <span style={{ color: C.pink }}>o</span>
+      <span style={{ color: C.violet }}>o</span>
       <span style={{ color: col }}>m</span>
     </span>
   )
@@ -229,7 +231,7 @@ function Hero({ onCTA }) {
         <h1 style={{ fontFamily: FF.titre, fontWeight: 800, color: C.txtLight, lineHeight: 1.05, margin: '36px 0 22px', letterSpacing: -2, fontSize: 'clamp(48px, 9vw, 96px)' }}>
           Scelle.<br />
           <span style={{ background: C.grad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Attends.</span><br />
-          Souris.
+          Révèle.
         </h1>
 
         <p style={{ fontFamily: FF.corps, fontSize: 'clamp(16px, 2.5vw, 19px)', color: 'rgba(250,248,252,.68)', lineHeight: 1.75, maxWidth: 520, margin: '0 auto 44px' }}>
@@ -412,22 +414,31 @@ function Occasions() {
   const subtitle  = useReveal()
   const container = useRevealChildren()
   return (
-    <section style={{ background: C.gradLight, padding: '112px 24px', borderTop: `1px solid rgba(26,14,46,.07)` }}>
-      <div style={{ maxWidth: 960, margin: '0 auto', textAlign: 'center' }}>
-        <h2 ref={title} style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 'clamp(28px, 5vw, 48px)', color: C.txtDark, marginBottom: 14 }}>
+    <section style={{ background: C.dark, padding: '112px 24px', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: '50%', left: '50%', width: 900, height: 900, borderRadius: '50%', background: 'radial-gradient(circle, rgba(198,92,232,.09) 0%, transparent 65%)', transform: 'translate(-50%,-50%)', pointerEvents: 'none' }} />
+      <div style={{ maxWidth: 980, margin: '0 auto', textAlign: 'center', position: 'relative', zIndex: 1 }}>
+        <h2 ref={title} style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 'clamp(28px, 5vw, 48px)', color: C.txtLight, marginBottom: 14 }}>
           Pour tous les moments qui comptent.
         </h2>
-        <p ref={subtitle} style={{ fontFamily: FF.corps, fontSize: 16, color: C.muted, marginBottom: 64 }}>
+        <p ref={subtitle} style={{ fontFamily: FF.corps, fontSize: 16, color: 'rgba(250,248,252,.5)', marginBottom: 64 }}>
           Chaque occasion mérite d'être préservée.
         </p>
-        <div ref={container} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
+        <div ref={container} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 16 }}>
           {OCCASIONS.map((o, i) => (
             <div key={i} data-reveal className={`reveal-d${(i % 4) + 1}`}
-              style={{ background: '#fff', borderRadius: 20, padding: '28px 16px', textAlign: 'center', boxShadow: '0 2px 18px rgba(26,14,46,.07)', border: `1px solid ${o.teinte}22`, transition: 'transform .2s, box-shadow .2s', cursor: 'default' }}
-              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = `0 14px 36px ${o.teinte}35` }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 2px 18px rgba(26,14,46,.07)' }}>
-              <div style={{ fontSize: 38, marginBottom: 10 }}>{o.icone}</div>
-              <div style={{ fontFamily: FF.corps, fontSize: 14, fontWeight: 700, color: C.txtDark }}>{o.nom}</div>
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
+                padding: '36px 24px 28px', borderRadius: 24,
+                flex: '1 1 130px', minWidth: 130, maxWidth: 160,
+                background: `radial-gradient(circle at 50% 10%, ${o.teinte}20 0%, rgba(255,255,255,.02) 70%)`,
+                border: `1px solid ${o.teinte}30`,
+                transition: 'transform .22s, border-color .22s',
+                cursor: 'default',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-7px) scale(1.03)'; e.currentTarget.style.borderColor = `${o.teinte}65` }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.borderColor = `${o.teinte}30` }}>
+              <div style={{ fontSize: 44, filter: `drop-shadow(0 0 20px ${o.teinte}90)` }}>{o.icone}</div>
+              <div style={{ fontFamily: FF.corps, fontSize: 14, fontWeight: 600, color: 'rgba(250,248,252,.88)', letterSpacing: .3 }}>{o.nom}</div>
             </div>
           ))}
         </div>
@@ -485,97 +496,6 @@ function Testimonials() {
   )
 }
 
-
-// ── SECTION 6 — GAMIFICATION ─────────────────────────────────────────────────
-const NIVEAUX_SITE = [
-  { niveau: 1, nom: 'Graine',  emoji: '🌱', min: 0   },
-  { niveau: 2, nom: 'Bourgeon',emoji: '🌿', min: 15  },
-  { niveau: 3, nom: 'Pousse',  emoji: '🪴', min: 40  },
-  { niveau: 4, nom: 'Branche', emoji: '🌲', min: 80  },
-  { niveau: 5, nom: 'Arbre',   emoji: '🌳', min: 150 },
-  { niveau: 6, nom: 'Forêt',   emoji: '🌿', min: 300 },
-]
-
-const BADGES_SITE = [
-  { emoji: '🏗️', nom: 'Bâtisseur de liens',   desc: 'Créez des capsules' },
-  { emoji: '📸', nom: 'Gardien des instants',  desc: 'Déposez des souvenirs' },
-  { emoji: '🤝', nom: 'Rassembleur',           desc: 'Parrainez des proches' },
-  { emoji: '👴', nom: 'Passeur de mémoire',    desc: 'Ouvrez des capsules Papy' },
-  { emoji: '✨', nom: 'Inoubliable',           desc: 'Achetez des packs' },
-]
-
-function Gamification() {
-  const title     = useReveal()
-  const container = useRevealChildren()
-  return (
-    <section style={{ background: C.dark, padding: '112px 24px' }}>
-      <div style={{ maxWidth: 1060, margin: '0 auto', textAlign: 'center' }}>
-        <h2 ref={title} style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 'clamp(28px, 5vw, 48px)', color: C.txtLight, marginBottom: 14 }}>
-          Progressez. Débloquez. Soyez récompensé.
-        </h2>
-        <p ref={useReveal()} style={{ fontFamily: FF.corps, fontSize: 16, color: 'rgba(250,248,252,.55)', marginBottom: 64 }}>
-          Blooom récompense chaque geste — créer une capsule, déposer un souvenir, parrainer un proche.<br />6 niveaux, des dizaines de badges et des récompenses exclusives vous attendent.
-        </p>
-
-        {/* 6 niveaux */}
-        <div ref={container} style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 64, flexWrap: 'wrap' }}>
-          {NIVEAUX_SITE.map((n, i) => (
-            <div key={i} data-reveal className={`reveal-d${(i % 6) + 1}`} style={{
-              background: i === 5
-                ? `linear-gradient(135deg, rgba(198,92,232,.25), rgba(255,92,157,.2))`
-                : 'rgba(255,255,255,.04)',
-              border: i === 5
-                ? `1px solid rgba(198,92,232,.4)`
-                : '1px solid rgba(255,255,255,.08)',
-              borderRadius: 18, padding: '20px 16px', minWidth: 100, flex: '1 1 90px', maxWidth: 130,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-            }}>
-              <span style={{ fontSize: 28 }}>{n.emoji}</span>
-              <div style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 14,
-                color: i === 5 ? C.pink : C.txtLight }}>{n.nom}</div>
-              <div style={{ fontFamily: FF.corps, fontSize: 11, color: 'rgba(250,248,252,.35)' }}>{n.min} pts</div>
-            </div>
-          ))}
-        </div>
-
-        {/* 5 catégories de badges */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 56 }}>
-          {BADGES_SITE.map((b, i) => (
-            <div key={i} style={{
-              background: 'rgba(255,255,255,.04)', borderRadius: 20, padding: '28px 16px',
-              border: '1px solid rgba(255,255,255,.07)', textAlign: 'center',
-            }}>
-              <div style={{ fontSize: 36, marginBottom: 10 }}>{b.emoji}</div>
-              <div style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 14, color: C.txtLight, marginBottom: 6 }}>{b.nom}</div>
-              <div style={{ fontFamily: FF.corps, fontSize: 12, color: 'rgba(250,248,252,.4)' }}>{b.desc}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Récompenses exemples */}
-        <div style={{ background: 'rgba(255,255,255,.04)', borderRadius: 24, padding: '32px 36px', border: '1px solid rgba(255,255,255,.08)', display: 'inline-flex', gap: 40, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 6 }}>🌿</div>
-            <div style={{ fontFamily: FF.corps, fontSize: 13, color: C.txtLight, fontWeight: 600 }}>Bourgeon</div>
-            <div style={{ fontFamily: FF.corps, fontSize: 12, color: 'rgba(250,248,252,.4)', marginTop: 2 }}>1 mois offert</div>
-          </div>
-          <div style={{ width: 1, height: 48, background: 'rgba(255,255,255,.1)' }} className="hide-mobile" />
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 6 }}>🌳</div>
-            <div style={{ fontFamily: FF.corps, fontSize: 13, color: C.txtLight, fontWeight: 600 }}>Arbre</div>
-            <div style={{ fontFamily: FF.corps, fontSize: 12, color: 'rgba(250,248,252,.4)', marginTop: 2 }}>1 Pack Mariage offert</div>
-          </div>
-          <div style={{ width: 1, height: 48, background: 'rgba(255,255,255,.1)' }} className="hide-mobile" />
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 32, marginBottom: 6 }}>🌿</div>
-            <div style={{ fontFamily: FF.corps, fontSize: 13, color: C.txtLight, fontWeight: 600 }}>Forêt</div>
-            <div style={{ fontFamily: FF.corps, fontSize: 12, color: 'rgba(250,248,252,.4)', marginTop: 2 }}>6 mois offerts</div>
-          </div>
-        </div>
-      </div>
-    </section>
-  )
-}
 
 
 // ── SECTION 6 — CONFIDENTIALITÉ ──────────────────────────────────────────────
@@ -640,8 +560,8 @@ const PACKS_SITE = [
     badge: 'Le plus populaire', hero: true,
     features: [
       '150 photos',
-      '20 vidéos (20s)',
-      '10 vocaux (20s)',
+      '20 vidéos',
+      '10 vocaux',
       '50 participants',
       'QR code de partage',
     ],
@@ -655,8 +575,8 @@ const PACKS_SITE = [
     badge: null, hero: false,
     features: [
       '500 photos',
-      '50 vidéos (20s)',
-      '30 vocaux (20s)',
+      '50 vidéos',
+      '30 vocaux',
       'Participants illimités',
       'QR code pour les tables',
     ],
@@ -671,24 +591,23 @@ const PACK_PAPY = {
   prixMensuel: '4,99€/mois', prixAnnuel: '44,99€/an',
   economie: '−15€/an',
   features: [
+    'Interface ultra-simplifiée pour seniors',
     '40 photos par mois',
     '4 vidéos par mois',
     '4 vocaux par mois',
     'Participants illimités',
     'Capsule mensuelle automatique',
-    'Interface ultra-simplifiée',
     'Album papier (bientôt)',
   ],
 }
 
 function Pricing({ onCTA, onScrollToStores }) {
-  const [annuel, setAnnuel] = useState(false)
   const title     = useReveal()
   const container = useRevealChildren()
 
   return (
     <section style={{ background: C.light, padding: '112px 24px' }} id="tarifs">
-      <div style={{ maxWidth: 1060, margin: '0 auto', textAlign: 'center' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', textAlign: 'center' }}>
 
         <h2 ref={title} style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 'clamp(28px, 5vw, 48px)', color: C.txtDark, marginBottom: 14 }}>
           Payez uniquement pour ce dont vous avez besoin.
@@ -697,8 +616,8 @@ function Pricing({ onCTA, onScrollToStores }) {
           Pas d'abonnement général. Un pack ciblé pour l'occasion qui compte, ou un rituel mensuel pour les proches qui comptent.
         </p>
 
-        {/* Grille packs one-shot */}
-        <div ref={container} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, alignItems: 'stretch', marginBottom: 56 }}>
+        {/* Grille 4 packs */}
+        <div ref={container} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24, alignItems: 'stretch', marginBottom: 32 }}>
           {PACKS_SITE.map((p, i) => (
             <div key={p.id} data-reveal className={`reveal-d${i + 1}`} style={{
               ...(p.hero ? {
@@ -753,43 +672,45 @@ function Pricing({ onCTA, onScrollToStores }) {
               </BtnGrad>
             </div>
           ))}
-        </div>
 
-        {/* Pack Mamie/Papy — présentation pleine largeur */}
-        <div style={{ maxWidth: 720, margin: '0 auto 16px', background: `linear-gradient(135deg, rgba(198,92,232,.08), rgba(255,92,157,.08))`, borderRadius: 32, padding: '8px', border: '1px solid rgba(198,92,232,.2)' }}>
-          <div style={{ background: C.lightCard, borderRadius: 26, padding: '40px 40px 44px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            <span style={{ background: C.grad, color: '#fff', borderRadius: 999, padding: '5px 18px', fontSize: 12, fontWeight: 700, fontFamily: FF.corps, marginBottom: 20 }}>
-              Abonnement récurrent — résiliable à tout moment
-            </span>
-            <div style={{ fontSize: 52, marginBottom: 10 }}>{PACK_PAPY.icone}</div>
-            <h3 style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 28, color: C.txtDark, marginBottom: 8 }}>{PACK_PAPY.nom}</h3>
-            <p style={{ fontFamily: FF.corps, fontSize: 15, color: C.muted, marginBottom: 20, maxWidth: 460, lineHeight: 1.65 }}>
-              Une capsule mensuelle que la famille alimente. Le 1er du mois, vos proches découvrent tous les souvenirs préparés pour eux. Interface simplifiée, conçue pour ceux qui ne sont pas à l'aise avec le numérique.
+          {/* Pack Mamie/Papy — 4e carte, abonnement mensuel */}
+          <div data-reveal className="reveal-d4" style={{
+            background: `linear-gradient(${C.lightCard}, ${C.lightCard}) padding-box, linear-gradient(135deg, #C65CE8 0%, #FF5C9D 100%) border-box`,
+            border: '2.5px solid transparent',
+            boxShadow: '0 20px 56px rgba(198,92,232,.14)',
+            borderRadius: 28, padding: '52px 28px 44px',
+            display: 'flex', flexDirection: 'column', position: 'relative',
+          }}>
+            <div style={{ position: 'absolute', top: -15, left: '50%', transform: 'translateX(-50%)', background: 'linear-gradient(135deg, #C65CE8, #FF5C9D)', color: '#fff', borderRadius: 999, padding: '5px 18px', fontSize: 12, fontWeight: 700, fontFamily: FF.corps, whiteSpace: 'nowrap' }}>
+              Abonnement mensuel
+            </div>
+            <div style={{ fontSize: 36, marginBottom: 8 }}>{PACK_PAPY.icone}</div>
+            <h3 style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 20, color: C.txtDark, marginBottom: 4, textAlign: 'center' }}>
+              {PACK_PAPY.nom}
+            </h3>
+            <p style={{ fontFamily: FF.corps, fontSize: 12, color: C.muted, margin: '0 0 12px' }}>
+              Conçu pour les personnes peu à l'aise avec le numérique
             </p>
-
-            {/* Toggle mensuel / annuel */}
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(26,14,46,.07)', borderRadius: 999, padding: '5px 6px', marginBottom: 24 }}>
-              <button onClick={() => setAnnuel(false)} style={{ padding: '8px 20px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: FF.corps, fontSize: 14, fontWeight: 600, background: !annuel ? C.dark : 'transparent', color: !annuel ? C.txtLight : C.muted }}>Mensuel</button>
-              <button onClick={() => setAnnuel(true)} style={{ padding: '8px 20px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: FF.corps, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, background: annuel ? C.dark : 'transparent', color: annuel ? C.txtLight : C.muted }}>
-                Annuel
-                <span style={{ background: 'linear-gradient(135deg,#22C7B8,#4D7CFF)', color: '#fff', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>−15€</span>
-              </button>
+            <div style={{ textAlign: 'center', margin: '8px 0 20px' }}>
+              <div>
+                <span style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 40, background: 'linear-gradient(135deg, #C65CE8, #FF5C9D)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>4,99€</span>
+                <span style={{ fontFamily: FF.corps, fontSize: 13, color: C.muted }}>/mois</span>
+              </div>
+              <div style={{ fontFamily: FF.corps, fontSize: 12, color: C.muted, marginTop: 4 }}>
+                ou <span style={{ fontWeight: 700, color: C.txtDark }}>44,99€/an</span>{' '}
+                <span style={{ color: '#22C7B8', fontWeight: 700 }}>−15€</span>
+              </div>
             </div>
-
-            <div style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 52, background: C.grad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', marginBottom: annuel ? 4 : 20 }}>
-              {annuel ? PACK_PAPY.prixAnnuel : PACK_PAPY.prixMensuel}
-            </div>
-            {annuel && <p style={{ fontFamily: FF.corps, fontSize: 13, color: C.muted, margin: '0 0 20px' }}>économisez 15€/an</p>}
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, width: '100%', marginBottom: 28 }}>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 28px', textAlign: 'left', flex: 1 }}>
               {PACK_PAPY.features.map((f, j) => (
-                <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: FF.corps, fontSize: 14, color: C.txtDark }}>
-                  <span style={{ color: C.violet, fontWeight: 700, flexShrink: 0 }}>✓</span>{f}
-                </div>
+                <li key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10, fontFamily: FF.corps, fontSize: 14, color: C.txtDark }}>
+                  <span style={{ color: C.violet, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>
+                  {f}
+                </li>
               ))}
-            </div>
-            <BtnGrad onClick={onCTA} style={{ padding: '16px 40px', fontSize: 16 }}>
-              Choisir le Pack Mamie/Papy
+            </ul>
+            <BtnGrad onClick={onCTA} style={{ width: '100%', textAlign: 'center', background: 'linear-gradient(135deg, #C65CE8 0%, #FF5C9D 100%)' }}>
+              Choisir ce pack
             </BtnGrad>
           </div>
         </div>
@@ -1018,7 +939,7 @@ function Footer() {
       <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22, textAlign: 'center' }}>
         <Logo taille={28} mode="dark" />
         <p style={{ fontFamily: FF.corps, fontSize: 14, color: 'rgba(250,248,252,.35)', margin: 0 }}>
-          Scelle. Attends. Souris.
+          Scelle. Attends. Révèle.
         </p>
         <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap', justifyContent: 'center' }}>
           {FOOTER_LINKS.map(lien => (
@@ -1066,7 +987,6 @@ export default function App() {
       <Mockups      />
       <Occasions    />
       <Testimonials />
-      <Gamification />
       <Privacy      />
       {/* Section tarifs — toggle mensuel/annuel, 3 cartes, réassurance */}
       <Pricing      onCTA={scrollToWaitlist} onScrollToStores={scrollToStores} />
