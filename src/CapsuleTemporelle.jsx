@@ -412,10 +412,8 @@ function genererCode() {
   return code;
 }
 
-// Construit le lien de partage à partir d'un code. Domaine d'exemple :
-// EN PROD, ce lien doit être un "lien universel" qui ouvre l'app installée.
 function lienPartage(code) {
-  return `https://capsule.app/rejoindre?code=${code}`;
+  return `${window.location.origin}?code=${code}`;
 }
 
 function formaterDate(iso) {
@@ -2775,7 +2773,7 @@ function EcranProfil({ moi, capsules, gami, modifierMoi, allerVers }) {
   const [copie, setCopie] = useState(false);
 
   const lienParrainage = moi.codeParrain
-    ? `https://blooom.app/rejoindre?parrain=${moi.codeParrain}`
+    ? `${window.location.origin}?parrain=${moi.codeParrain}`
     : null;
 
   // Charge les statistiques de parrainage de l'utilisateur
@@ -10143,12 +10141,17 @@ export default function App() {
     return () => { listeners.forEach(l => l.remove()); };
   }, [session]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Capture le code parrain et détecte le retour Stripe depuis l'URL
+  // Capture le code parrain, le code d'invitation et le retour Stripe depuis l'URL
   useEffect(() => {
     try {
       const params = new URLSearchParams(window.location.search);
       const parrain = params.get("parrain");
       if (parrain) localStorage.setItem("blooom_parrain", parrain.toUpperCase());
+      const code = (params.get("code") || "").toUpperCase();
+      if (code.length >= 5) {
+        setCodePrefill(code);
+        window.history.replaceState({}, "", window.location.pathname);
+      }
       if (params.get("checkout") === "success") {
         const pack = params.get("pack") || "occasion";
         window.history.replaceState({}, "", window.location.pathname);
@@ -10156,6 +10159,12 @@ export default function App() {
       }
     } catch {}
   }, []);
+
+  // Navigue vers l'écran rejoindre dès que l'auth est connue (lien d'invitation web)
+  useEffect(() => {
+    if (!codePrefill || !sessionPrete) return;
+    allerVers("rejoindre");
+  }, [codePrefill, sessionPrete]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Navigue vers l'écran de création du pack une fois l'utilisateur connecté et les données chargées
   useEffect(() => {
