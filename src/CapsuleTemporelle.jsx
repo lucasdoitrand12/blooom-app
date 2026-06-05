@@ -809,6 +809,138 @@ function RecadreurPhoto({ src, onValider, onAnnuler }) {
   );
 }
 
+// Recadrage photo de couverture (bannière rectangulaire)
+function RecadreurCouverture({ src, onValider, onAnnuler }) {
+  const PW = 320; // largeur preview
+  const PH = 150; // hauteur preview — identique à S.detailCouverture
+  const OW = 800; // largeur sortie canvas
+  const OH = 375; // hauteur sortie canvas (ratio PW/PH)
+
+  const [zoom, setZoom]           = React.useState(1);
+  const [offset, setOffset]       = React.useState({ x: 0, y: 0 });
+  const [dragStart, setDragStart] = React.useState(null);
+  const [natSize, setNatSize]     = React.useState(null);
+  const imgRef    = React.useRef(null);
+  const canvasRef = React.useRef(null);
+
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+
+  function baseScale() {
+    if (!natSize) return 1;
+    return Math.max(PW / natSize.w, PH / natSize.h);
+  }
+
+  function maxOff(z) {
+    if (!natSize) return { x: 0, y: 0 };
+    const ts = baseScale() * z;
+    return {
+      x: Math.max(0, (natSize.w * ts - PW) / 2),
+      y: Math.max(0, (natSize.h * ts - PH) / 2),
+    };
+  }
+
+  const bs       = baseScale();
+  const ts       = bs * zoom;
+  const dispW    = natSize ? natSize.w * ts : PW;
+  const dispH    = natSize ? natSize.h * ts : PH;
+  const imgLeft  = PW / 2 + offset.x - dispW / 2;
+  const imgTop   = PH / 2 + offset.y - dispH / 2;
+
+  function getPoint(e) {
+    return e.touches ? { x: e.touches[0].clientX, y: e.touches[0].clientY }
+                     : { x: e.clientX, y: e.clientY };
+  }
+  function onPointerDown(e) {
+    e.preventDefault();
+    const pt = getPoint(e);
+    setDragStart({ px: pt.x, py: pt.y, ox: offset.x, oy: offset.y });
+  }
+  function onPointerMove(e) {
+    if (!dragStart || !natSize) return;
+    e.preventDefault();
+    const pt = getPoint(e);
+    const mo = maxOff(zoom);
+    setOffset({
+      x: clamp(dragStart.ox + pt.x - dragStart.px, -mo.x, mo.x),
+      y: clamp(dragStart.oy + pt.y - dragStart.py, -mo.y, mo.y),
+    });
+  }
+  function onPointerUp() { setDragStart(null); }
+  function onZoomChange(v) {
+    const z = parseFloat(v);
+    setZoom(z);
+    const mo = maxOff(z);
+    setOffset(prev => ({ x: clamp(prev.x, -mo.x, mo.x), y: clamp(prev.y, -mo.y, mo.y) }));
+  }
+
+  function valider() {
+    if (!natSize) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d");
+    canvas.width = OW; canvas.height = OH;
+    ctx.clearRect(0, 0, OW, OH);
+    const scale = baseScale() * zoom;
+    const cx = natSize.w / 2 - offset.x / scale;
+    const cy = natSize.h / 2 - offset.y / scale;
+    const vw = PW / scale;
+    const vh = PH / scale;
+    try {
+      ctx.drawImage(imgRef.current, cx - vw / 2, cy - vh / 2, vw, vh, 0, 0, OW, OH);
+      onValider(canvas.toDataURL("image/jpeg", 0.88));
+    } catch {
+      alert("Impossible de recadrer depuis cette URL. Re-sélectionnez la photo via le bouton 📷 Changer.");
+      onAnnuler();
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 9999,
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
+      <div style={{ width: "100%", maxWidth: 360 }}>
+        <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, marginBottom: 16, textAlign: "center" }}>
+          Recadrer la photo de couverture
+        </div>
+        <div
+          style={{ width: "100%", height: PH, borderRadius: 16, overflow: "hidden", position: "relative",
+            cursor: dragStart ? "grabbing" : "grab", background: "#222", touchAction: "none" }}
+          onMouseDown={onPointerDown} onMouseMove={onPointerMove}
+          onMouseUp={onPointerUp} onMouseLeave={onPointerUp}
+          onTouchStart={onPointerDown} onTouchMove={onPointerMove} onTouchEnd={onPointerUp}
+        >
+          <img ref={imgRef} src={src} onLoad={e => setNatSize({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
+            crossOrigin="anonymous" draggable={false} alt=""
+            style={{ position: "absolute", width: dispW, height: dispH, left: imgLeft, top: imgTop,
+              pointerEvents: "none", userSelect: "none" }} />
+        </div>
+        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, margin: "8px 0 4px", textAlign: "center" }}>
+          Glisse pour recadrer
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#fff", marginTop: 4 }}>
+          <span style={{ fontSize: 16, opacity: 0.5 }}>−</span>
+          <input type="range" min={1} max={3} step={0.02} value={zoom}
+            onChange={e => onZoomChange(e.target.value)}
+            style={{ flex: 1, accentColor: "#C65CE8" }} />
+          <span style={{ fontSize: 16, opacity: 0.5 }}>+</span>
+        </div>
+        <div style={{ display: "flex", gap: 12, marginTop: 22 }}>
+          <button onClick={onAnnuler}
+            style={{ flex: 1, padding: "11px 0", borderRadius: 999, border: "1px solid rgba(255,255,255,0.25)",
+              background: "transparent", color: "#fff", fontWeight: 600, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
+            Annuler
+          </button>
+          <button onClick={valider}
+            style={{ flex: 2, padding: "11px 0", borderRadius: 999,
+              background: "linear-gradient(135deg,#FF8A3D,#C65CE8)", color: "#fff",
+              border: "none", fontWeight: 700, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>
+            Valider
+          </button>
+        </div>
+        <canvas ref={canvasRef} style={{ display: "none" }} />
+      </div>
+    </div>
+  );
+}
+
 function SelecteurPhotoProfil({ photo, couleur, prenom, onChange, taille = 96 }) {
   const [srcBrut, setSrcBrut] = React.useState(null);
 
@@ -3717,6 +3849,7 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
   const [nouveauNom, setNouveauNom] = useState(capsule?.nom || "");
   const [confirmSuppression, setConfirmSuppression] = useState(false);
   const [copieInvit, setCopieInvit] = useState(false);
+  const [srcRecadrageCouv, setSrcRecadrageCouv] = useState(null);
 
   async function partagerInvitation() {
     const lien = lienPartage(capsule.code);
@@ -3882,8 +4015,27 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
           )}
         </div>
         <input type="file" accept="image/*" style={{ display: "none" }}
-          onChange={(e) => lireFichierEnBase64(e, (b64) => modifierCouverture(capsule.id, b64))} />
+          onChange={(e) => lireFichierEnBase64(e, setSrcRecadrageCouv)} />
       </label>
+
+      {/* Bouton recadrer photo existante */}
+      {capsule.couverture && (
+        <button onClick={() => setSrcRecadrageCouv(capsule.couverture)}
+          style={{ width: "100%", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)",
+            borderRadius: 12, color: "rgba(255,255,255,0.85)", padding: "8px 0",
+            fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 8, fontFamily: "inherit" }}>
+          ↕ Recadrer
+        </button>
+      )}
+
+      {/* Modal recadrage couverture */}
+      {srcRecadrageCouv && (
+        <RecadreurCouverture
+          src={srcRecadrageCouv}
+          onValider={b64 => { modifierCouverture(capsule.id, b64); setSrcRecadrageCouv(null); }}
+          onAnnuler={() => setSrcRecadrageCouv(null)}
+        />
+      )}
 
       {/* ── Bandeau mensuel Papy/Mamie ── */}
       {estPapy && (
@@ -9069,9 +9221,10 @@ function EcranPapySimple({ capsule, allerVers, onTerminer, autresCapsules }) {
 // ============================================================================
 function EcranSuccesPapy({ creerCapsule, allerVers }) {
   const [nom, setNom]               = useState("");
-  const [couverture, setCouverture] = useState(null);
-  const [preview, setPreview]       = useState(null);
-  const [enCours, setEnCours]       = useState(false);
+  const [couverture, setCouverture]           = useState(null);
+  const [preview, setPreview]               = useState(null);
+  const [srcRecadrageCouv, setSrcRecadrageCouv] = useState(null);
+  const [enCours, setEnCours]               = useState(false);
 
   // Génère les 12 prochains mois disponibles (minimum : dans 2 mois)
   const MOIS_NOMS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
@@ -9108,9 +9261,8 @@ function EcranSuccesPapy({ creerCapsule, allerVers }) {
   function onPhoto(e) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setCouverture(file);
     const r = new FileReader();
-    r.onload = ev => setPreview(ev.target.result);
+    r.onload = ev => setSrcRecadrageCouv(ev.target.result);
     r.readAsDataURL(file);
   }
 
@@ -9133,6 +9285,13 @@ function EcranSuccesPapy({ creerCapsule, allerVers }) {
 
   return (
     <div style={S.ecran}>
+      {srcRecadrageCouv && (
+        <RecadreurCouverture
+          src={srcRecadrageCouv}
+          onValider={b64 => { setCouverture(b64); setPreview(b64); setSrcRecadrageCouv(null); }}
+          onAnnuler={() => setSrcRecadrageCouv(null)}
+        />
+      )}
 
       {/* ── Bandeau principal ── */}
       <div style={{ background:"linear-gradient(135deg,#C25A20,#FF8C5A)",
@@ -9292,10 +9451,18 @@ function EcranPapy({ capsules, moi, allerVers, creerCapsule, modifierNom, modifi
   const joursJ          = dateOuv ? Math.ceil((dateOuv - now) / 86400000) : null;
 
   const [editionNom, setEditionNom]   = useState(false);
-  const [nouveauNom, setNouveauNom]   = useState(capsuleActuelle.nom);
+  const [nouveauNom, setNouveauNom]         = useState(capsuleActuelle.nom);
+  const [srcRecadrageCouv, setSrcRecadrageCouv] = useState(null);
 
   return (
     <div style={{ ...S.ecran, padding: "0 0 96px" }}>
+      {srcRecadrageCouv && (
+        <RecadreurCouverture
+          src={srcRecadrageCouv}
+          onValider={b64 => { modifierCouverture(capsuleActuelle.id, b64); setSrcRecadrageCouv(null); }}
+          onAnnuler={() => setSrcRecadrageCouv(null)}
+        />
+      )}
 
       {/* ── Hero : photo de couverture (pleine largeur, 210px) ── */}
       <div style={{ position: "relative", height: 210, flexShrink: 0, marginBottom: 16 }}>
@@ -9470,7 +9637,7 @@ function EcranPapy({ capsules, moi, allerVers, creerCapsule, modifierNom, modifi
                 background: "var(--carte-bg)", borderRadius: 16, padding: "14px 16px",
                 cursor: "pointer", boxShadow: "0 2px 8px rgba(46,34,48,.05)" }}>
                 <input type="file" accept="image/*" style={{ display: "none" }}
-                  onChange={e => { const f = e.target.files?.[0]; if (f) modifierCouverture(capsuleActuelle.id, f); }} />
+                  onChange={e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => setSrcRecadrageCouv(ev.target.result); r.readAsDataURL(f); }} />
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <span style={{ fontSize: 20 }}>🖼️</span>
                   <div>
