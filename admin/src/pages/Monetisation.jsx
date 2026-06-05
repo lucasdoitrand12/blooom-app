@@ -25,12 +25,10 @@ function DarkTooltip({ active, payload, label }) {
   );
 }
 
-// ── Prix des packs (centimes → euros pour le MRR) ─────────────────────────────
+// ── Prix des packs récurrents (centimes → euros pour le MRR) ─────────────────
 const MRR_MENSUEL = {
-  pack_naissance_mensuel: 4.99,
-  pack_naissance_annuel:  44.99 / 12,
-  pack_papy_mensuel:      4.99,
-  pack_papy_annuel:       44.99 / 12,
+  pack_papy_mensuel: 4.99,
+  pack_papy_annuel:  44.99 / 12,
 };
 
 // Labels des 12 derniers mois pour l'axe du graphique MRR
@@ -127,11 +125,10 @@ export default function Monetisation() {
     setTotalCodes(codesTotal || 0);
 
     // ── Calcul des KPIs ────────────────────────────────────────────────────
-    const actifs    = packsActifs || [];
-    const nbNaiss   = actifs.filter(p => p.type === 'naissance').length;
-    const nbPapy    = actifs.filter(p => p.type === 'papy').length;
+    const actifs = packsActifs || [];
+    const nbPapy = actifs.filter(p => p.type === 'papy').length;
 
-    // MRR : packs récurrents actifs (4,99€/mois chacun)
+    // MRR : packs Mamie/Papy actifs (4,99€/mois chacun)
     const mrr = actifs.length * 4.99;
     const arr = mrr * 12;
 
@@ -144,7 +141,7 @@ export default function Monetisation() {
     const baseChurn = actifs.length + nbChurn;
     const churnRate = baseChurn > 0 ? Math.round((nbChurn / baseChurn) * 1000) / 10 : 0;
 
-    setKpi({ mrr, arr, nbNaiss, nbPapy, revenusMois, waitlist: waitlistCount || 0, churnRate, nbAchats: (achatsData || []).length });
+    setKpi({ mrr, arr, nbPapy, revenusMois, waitlist: waitlistCount || 0, churnRate, nbAchats: (achatsData || []).length });
 
     // ── Alertes sidebar ────────────────────────────────────────────────────
     setMonetAlerts?.({
@@ -266,10 +263,9 @@ export default function Monetisation() {
 
       {/* ── KPIs ─────────────────────────────────────────────────────────────── */}
       <div style={{ display:'flex', gap:14, marginBottom:24, flexWrap:'wrap' }}>
-        <KPICard icon="💶" label="MRR"                     value={kpi ? `${kpi.mrr.toFixed(0)}€`       : '—'} loading={loading} help="Monthly Recurring Revenue — packs Naissance/Papy actifs × 4,99€." />
-        <KPICard icon="📈" label="ARR"                     value={kpi ? `${kpi.arr.toFixed(0)}€`       : '—'} loading={loading} help="Annual Recurring Revenue = MRR × 12." />
-        <KPICard icon="🍼" label="Abonnés Naissance"       value={kpi ? fmtNum(kpi.nbNaiss)             : '—'} loading={loading} help="Packs Naissance actifs (packs_actifs.type = 'naissance')." />
-        <KPICard icon="👴" label="Abonnés Mamie/Papy"      value={kpi ? fmtNum(kpi.nbPapy)              : '—'} loading={loading} help="Packs Mamie/Papy actifs (packs_actifs.type = 'papy')." />
+        <KPICard icon="💶" label="MRR"               value={kpi ? `${kpi.mrr.toFixed(0)}€`         : '—'} loading={loading} help="Monthly Recurring Revenue — packs Mamie/Papy actifs × 4,99€." />
+        <KPICard icon="📈" label="ARR"               value={kpi ? `${kpi.arr.toFixed(0)}€`         : '—'} loading={loading} help="Annual Recurring Revenue = MRR × 12." />
+        <KPICard icon="👴" label="Abonnés Mamie/Papy" value={kpi ? fmtNum(kpi.nbPapy)              : '—'} loading={loading} help="Packs Mamie/Papy actifs (packs_actifs.type = 'papy')." />
         <KPICard icon="💳" label="Revenus ce mois"         value={kpi ? `${kpi.revenusMois?.toFixed(0)}€` : '—'} loading={loading} help="Somme des achats complétés depuis le 1er du mois." />
         <KPICard icon="📖" label="Waitlist impression"     value={kpi ? fmtNum(kpi.waitlist)            : '—'} loading={loading} help="Utilisateurs inscrits sur la liste d'attente album papier." />
         <KPICard icon="📉" label="Churn mensuel"           value={kpi ? `${kpi.churnRate}%`             : '—'} loading={loading} help="Packs résiliés ce mois / (actifs + résiliés)." />
@@ -391,7 +387,7 @@ export default function Monetisation() {
           {/* Barre de filtres */}
           <div style={{ display:'flex', gap:10, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
             <Select value={filtrePlan} onChange={v => { setFiltrePlan(v); setPageAbo(1); }} placeholder="Tous les plans"
-              options={[{ value:'plus', label:'Blooom Plus' }, { value:'rituel', label:'Blooom Rituel' }]} />
+              options={[{ value:'papy', label:'Pack Mamie/Papy' }]} />
             <Select value={filtreStatut} onChange={v => { setFiltreStatut(v); setPageAbo(1); }} placeholder="Tous les statuts"
               options={[{ value:'actif', label:'Actif' }, { value:'expire', label:'Expiré' }]} />
             <span style={{ fontSize:12, color:T.muted }}>

@@ -16,12 +16,11 @@ const QUOTAS_DEFAUT = {
   gratuit:  { photos:15,  videos:0,  vocaux:0,  participants:10,   dureeVideo:0,  dureeVocal:0,  prix:0,     prixLabel:'Gratuit' },
   occasion: { photos:150, videos:20, vocaux:10, participants:50,   dureeVideo:20, dureeVocal:20, prix:9.99,  prixLabel:'9,99€ one-shot' },
   mariage:  { photos:500, videos:50, vocaux:30, participants:9999, dureeVideo:20, dureeVocal:20, prix:29.99, prixLabel:'29,99€ one-shot' },
-  naissance:{ photos:40,  videos:4,  vocaux:4,  participants:9999, dureeVideo:20, dureeVocal:20, prix:4.99,  prixAnnuel:44.99, prixLabel:'4,99€/mois ou 44,99€/an' },
   papy:     { photos:40,  videos:4,  vocaux:4,  participants:9999, dureeVideo:20, dureeVocal:20, prix:4.99,  prixAnnuel:44.99, prixLabel:'4,99€/mois ou 44,99€/an' },
 };
 
 const FORMULES_LABELS = {
-  gratuit:'Gratuit', occasion:'Occasion', mariage:'Mariage', naissance:'Naissance', papy:'Mamie/Papy',
+  gratuit:'Gratuit', occasion:'Occasion', mariage:'Mariage', papy:'Mamie/Papy',
 };
 
 const QUOTA_FIELDS = [

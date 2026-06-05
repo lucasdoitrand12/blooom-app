@@ -486,6 +486,98 @@ function Testimonials() {
 }
 
 
+// ── SECTION 6 — GAMIFICATION ─────────────────────────────────────────────────
+const NIVEAUX_SITE = [
+  { niveau: 1, nom: 'Graine',  emoji: '🌱', min: 0   },
+  { niveau: 2, nom: 'Bourgeon',emoji: '🌿', min: 15  },
+  { niveau: 3, nom: 'Pousse',  emoji: '🪴', min: 40  },
+  { niveau: 4, nom: 'Branche', emoji: '🌲', min: 80  },
+  { niveau: 5, nom: 'Arbre',   emoji: '🌳', min: 150 },
+  { niveau: 6, nom: 'Forêt',   emoji: '🌿', min: 300 },
+]
+
+const BADGES_SITE = [
+  { emoji: '🏗️', nom: 'Bâtisseur de liens',   desc: 'Créez des capsules' },
+  { emoji: '📸', nom: 'Gardien des instants',  desc: 'Déposez des souvenirs' },
+  { emoji: '🤝', nom: 'Rassembleur',           desc: 'Parrainez des proches' },
+  { emoji: '👴', nom: 'Passeur de mémoire',    desc: 'Ouvrez des capsules Papy' },
+  { emoji: '✨', nom: 'Inoubliable',           desc: 'Achetez des packs' },
+]
+
+function Gamification() {
+  const title     = useReveal()
+  const container = useRevealChildren()
+  return (
+    <section style={{ background: C.dark, padding: '112px 24px' }}>
+      <div style={{ maxWidth: 1060, margin: '0 auto', textAlign: 'center' }}>
+        <h2 ref={title} style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 'clamp(28px, 5vw, 48px)', color: C.txtLight, marginBottom: 14 }}>
+          Progressez. Débloquez. Soyez récompensé.
+        </h2>
+        <p ref={useReveal()} style={{ fontFamily: FF.corps, fontSize: 16, color: 'rgba(250,248,252,.55)', marginBottom: 64 }}>
+          Blooom récompense chaque geste — créer une capsule, déposer un souvenir, parrainer un proche.<br />6 niveaux, des dizaines de badges et des récompenses exclusives vous attendent.
+        </p>
+
+        {/* 6 niveaux */}
+        <div ref={container} style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 64, flexWrap: 'wrap' }}>
+          {NIVEAUX_SITE.map((n, i) => (
+            <div key={i} data-reveal className={`reveal-d${(i % 6) + 1}`} style={{
+              background: i === 5
+                ? `linear-gradient(135deg, rgba(198,92,232,.25), rgba(255,92,157,.2))`
+                : 'rgba(255,255,255,.04)',
+              border: i === 5
+                ? `1px solid rgba(198,92,232,.4)`
+                : '1px solid rgba(255,255,255,.08)',
+              borderRadius: 18, padding: '20px 16px', minWidth: 100, flex: '1 1 90px', maxWidth: 130,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+            }}>
+              <span style={{ fontSize: 28 }}>{n.emoji}</span>
+              <div style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 14,
+                color: i === 5 ? C.pink : C.txtLight }}>{n.nom}</div>
+              <div style={{ fontFamily: FF.corps, fontSize: 11, color: 'rgba(250,248,252,.35)' }}>{n.min} pts</div>
+            </div>
+          ))}
+        </div>
+
+        {/* 5 catégories de badges */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 56 }}>
+          {BADGES_SITE.map((b, i) => (
+            <div key={i} style={{
+              background: 'rgba(255,255,255,.04)', borderRadius: 20, padding: '28px 16px',
+              border: '1px solid rgba(255,255,255,.07)', textAlign: 'center',
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>{b.emoji}</div>
+              <div style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 14, color: C.txtLight, marginBottom: 6 }}>{b.nom}</div>
+              <div style={{ fontFamily: FF.corps, fontSize: 12, color: 'rgba(250,248,252,.4)' }}>{b.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Récompenses exemples */}
+        <div style={{ background: 'rgba(255,255,255,.04)', borderRadius: 24, padding: '32px 36px', border: '1px solid rgba(255,255,255,.08)', display: 'inline-flex', gap: 40, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 6 }}>🌿</div>
+            <div style={{ fontFamily: FF.corps, fontSize: 13, color: C.txtLight, fontWeight: 600 }}>Bourgeon</div>
+            <div style={{ fontFamily: FF.corps, fontSize: 12, color: 'rgba(250,248,252,.4)', marginTop: 2 }}>1 mois offert</div>
+          </div>
+          <div style={{ width: 1, height: 48, background: 'rgba(255,255,255,.1)' }} className="hide-mobile" />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 6 }}>🌳</div>
+            <div style={{ fontFamily: FF.corps, fontSize: 13, color: C.txtLight, fontWeight: 600 }}>Arbre</div>
+            <div style={{ fontFamily: FF.corps, fontSize: 12, color: 'rgba(250,248,252,.4)', marginTop: 2 }}>1 Pack Mariage offert</div>
+          </div>
+          <div style={{ width: 1, height: 48, background: 'rgba(255,255,255,.1)' }} className="hide-mobile" />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 32, marginBottom: 6 }}>🌿</div>
+            <div style={{ fontFamily: FF.corps, fontSize: 13, color: C.txtLight, fontWeight: 600 }}>Forêt</div>
+            <div style={{ fontFamily: FF.corps, fontSize: 12, color: 'rgba(250,248,252,.4)', marginTop: 2 }}>6 mois offerts</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+
 // ── SECTION 6 — CONFIDENTIALITÉ ──────────────────────────────────────────────
 const POINTS_CONF = [
   { ic: '🔐', titre: 'Chiffrement de bout en bout', texte: 'Personne ne peut lire vos souvenirs, même Blooom.' },
@@ -544,7 +636,7 @@ const PACKS_SITE = [
     icone: '🎉',
     nom: 'Pack Occasion',
     soustitre: 'Weekend · Soirée · Voyage · EVG',
-    prix: '12,99€', periode: ' une seule fois',
+    prix: '9,99€', periode: ' une seule fois',
     badge: 'Le plus populaire', hero: true,
     features: [
       '150 photos',
@@ -572,36 +664,22 @@ const PACKS_SITE = [
   },
 ]
 
-const PACKS_RECURRENTS_SITE = [
-  {
-    id: 'naissance',
-    icone: '🍼',
-    nom: 'Pack Naissance',
-    prixMensuel: '4,99€/mois', prixAnnuel: '44,99€/an',
-    economie: '−15€/an',
-    features: [
-      '40 photos par mois',
-      '4 vidéos par mois',
-      '4 vocaux par mois',
-      'Famille illimitée',
-      'Album papier (bientôt)',
-    ],
-  },
-  {
-    id: 'papy',
-    icone: '👴',
-    nom: 'Pack Mamie/Papy',
-    prixMensuel: '4,99€/mois', prixAnnuel: '44,99€/an',
-    economie: '−15€/an',
-    features: [
-      '40 photos par mois',
-      '4 vidéos par mois',
-      '4 vocaux par mois',
-      'Interface simplifiée',
-      'Album papier (bientôt)',
-    ],
-  },
-]
+const PACK_PAPY = {
+  id: 'papy',
+  icone: '👴',
+  nom: 'Pack Mamie/Papy',
+  prixMensuel: '4,99€/mois', prixAnnuel: '44,99€/an',
+  economie: '−15€/an',
+  features: [
+    '40 photos par mois',
+    '4 vidéos par mois',
+    '4 vocaux par mois',
+    'Participants illimités',
+    'Capsule mensuelle automatique',
+    'Interface ultra-simplifiée',
+    'Album papier (bientôt)',
+  ],
+}
 
 function Pricing({ onCTA, onScrollToStores }) {
   const [annuel, setAnnuel] = useState(false)
@@ -616,7 +694,7 @@ function Pricing({ onCTA, onScrollToStores }) {
           Payez uniquement pour ce dont vous avez besoin.
         </h2>
         <p ref={useReveal()} style={{ fontFamily: FF.corps, fontSize: 16, color: C.muted, marginBottom: 56 }}>
-          Pas d'abonnement général. Un pack ciblé, pour l'occasion qui compte.
+          Pas d'abonnement général. Un pack ciblé pour l'occasion qui compte, ou un rituel mensuel pour les proches qui comptent.
         </p>
 
         {/* Grille packs one-shot */}
@@ -677,64 +755,43 @@ function Pricing({ onCTA, onScrollToStores }) {
           ))}
         </div>
 
-        {/* Packs récurrents Naissance & Mamie/Papy */}
-        <h3 style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 26, color: C.txtDark, marginBottom: 8 }}>
-          Pour les moments qui durent dans le temps
-        </h3>
-        <p style={{ fontFamily: FF.corps, fontSize: 15, color: C.muted, marginBottom: 20 }}>
-          Quotas mensuels renouvelés automatiquement — résiliable à tout moment.
-        </p>
-
-        {/* Toggle mensuel / annuel */}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(26,14,46,.07)', borderRadius: 999, padding: '5px 6px', marginBottom: 32 }}>
-          <button onClick={() => setAnnuel(false)} style={{
-            padding: '8px 20px', borderRadius: 999, border: 'none', cursor: 'pointer',
-            fontFamily: FF.corps, fontSize: 14, fontWeight: 600,
-            background: !annuel ? C.dark : 'transparent',
-            color: !annuel ? C.txtLight : C.muted,
-          }}>Mensuel</button>
-          <button onClick={() => setAnnuel(true)} style={{
-            padding: '8px 20px', borderRadius: 999, border: 'none', cursor: 'pointer',
-            fontFamily: FF.corps, fontSize: 14, fontWeight: 600,
-            display: 'flex', alignItems: 'center', gap: 8,
-            background: annuel ? C.dark : 'transparent',
-            color: annuel ? C.txtLight : C.muted,
-          }}>
-            Annuel
-            <span style={{ background: 'linear-gradient(135deg,#22C7B8,#4D7CFF)', color: '#fff', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>
-              −15€
+        {/* Pack Mamie/Papy — présentation pleine largeur */}
+        <div style={{ maxWidth: 720, margin: '0 auto 16px', background: `linear-gradient(135deg, rgba(198,92,232,.08), rgba(255,92,157,.08))`, borderRadius: 32, padding: '8px', border: '1px solid rgba(198,92,232,.2)' }}>
+          <div style={{ background: C.lightCard, borderRadius: 26, padding: '40px 40px 44px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+            <span style={{ background: C.grad, color: '#fff', borderRadius: 999, padding: '5px 18px', fontSize: 12, fontWeight: 700, fontFamily: FF.corps, marginBottom: 20 }}>
+              Abonnement récurrent — résiliable à tout moment
             </span>
-          </button>
-        </div>
+            <div style={{ fontSize: 52, marginBottom: 10 }}>{PACK_PAPY.icone}</div>
+            <h3 style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 28, color: C.txtDark, marginBottom: 8 }}>{PACK_PAPY.nom}</h3>
+            <p style={{ fontFamily: FF.corps, fontSize: 15, color: C.muted, marginBottom: 20, maxWidth: 460, lineHeight: 1.65 }}>
+              Une capsule mensuelle que la famille alimente. Le 1er du mois, vos proches découvrent tous les souvenirs préparés pour eux. Interface simplifiée, conçue pour ceux qui ne sont pas à l'aise avec le numérique.
+            </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 24, maxWidth: 680, margin: '0 auto 56px' }}>
-          {PACKS_RECURRENTS_SITE.map((p, i) => (
-            <div key={p.id} style={{
-              background: C.lightCard, border: '1px solid rgba(26,14,46,.06)',
-              borderRadius: 28, padding: '40px 28px',
-              boxShadow: '0 4px 28px rgba(26,14,46,.07)',
-              display: 'flex', flexDirection: 'column',
-            }}>
-              <div style={{ fontSize: 36, marginBottom: 8 }}>{p.icone}</div>
-              <h3 style={{ fontFamily: FF.titre, fontWeight: 700, fontSize: 20, color: C.txtDark, marginBottom: 4 }}>{p.nom}</h3>
-              <div style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 40, color: C.txtDark, margin: '8px 0 4px' }}>
-                {annuel ? p.prixAnnuel : p.prixMensuel}
-              </div>
-              {annuel && (
-                <p style={{ fontFamily: FF.corps, fontSize: 12, color: C.muted, margin: '0 0 16px' }}>économisez 15€/an</p>
-              )}
-              <ul style={{ listStyle: 'none', padding: 0, margin: '16px 0 28px', textAlign: 'left', flex: 1 }}>
-                {p.features.map((f, j) => (
-                  <li key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 10, fontFamily: FF.corps, fontSize: 14, color: C.txtDark }}>
-                    <span style={{ color: C.muted, fontWeight: 700, flexShrink: 0, marginTop: 1 }}>✓</span>{f}
-                  </li>
-                ))}
-              </ul>
-              <BtnGrad onClick={onCTA} style={{ width: '100%', textAlign: 'center' }}>
-                Choisir ce pack
-              </BtnGrad>
+            {/* Toggle mensuel / annuel */}
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'rgba(26,14,46,.07)', borderRadius: 999, padding: '5px 6px', marginBottom: 24 }}>
+              <button onClick={() => setAnnuel(false)} style={{ padding: '8px 20px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: FF.corps, fontSize: 14, fontWeight: 600, background: !annuel ? C.dark : 'transparent', color: !annuel ? C.txtLight : C.muted }}>Mensuel</button>
+              <button onClick={() => setAnnuel(true)} style={{ padding: '8px 20px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: FF.corps, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, background: annuel ? C.dark : 'transparent', color: annuel ? C.txtLight : C.muted }}>
+                Annuel
+                <span style={{ background: 'linear-gradient(135deg,#22C7B8,#4D7CFF)', color: '#fff', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700 }}>−15€</span>
+              </button>
             </div>
-          ))}
+
+            <div style={{ fontFamily: FF.titre, fontWeight: 800, fontSize: 52, background: C.grad, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', marginBottom: annuel ? 4 : 20 }}>
+              {annuel ? PACK_PAPY.prixAnnuel : PACK_PAPY.prixMensuel}
+            </div>
+            {annuel && <p style={{ fontFamily: FF.corps, fontSize: 13, color: C.muted, margin: '0 0 20px' }}>économisez 15€/an</p>}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, width: '100%', marginBottom: 28 }}>
+              {PACK_PAPY.features.map((f, j) => (
+                <div key={j} style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: FF.corps, fontSize: 14, color: C.txtDark }}>
+                  <span style={{ color: C.violet, fontWeight: 700, flexShrink: 0 }}>✓</span>{f}
+                </div>
+              ))}
+            </div>
+            <BtnGrad onClick={onCTA} style={{ padding: '16px 40px', fontSize: 16 }}>
+              Choisir le Pack Mamie/Papy
+            </BtnGrad>
+          </div>
         </div>
 
         <p style={{ marginTop: 16, fontFamily: FF.corps, fontSize: 13, color: C.muted, lineHeight: 2 }}>
@@ -748,9 +805,9 @@ function Pricing({ onCTA, onScrollToStores }) {
 
 // ── SECTION 8 — OFFRIR BLOOOM ─────────────────────────────────────────────────
 const CADEAUX = [
-  { icone: '🎉', nom: 'Pack Occasion',    desc: 'Weekend, Soirée, Voyage ou EVG',      prix: '12,99€' },
-  { icone: '💍', nom: 'Pack Mariage',     desc: 'L\'événement d\'une vie',             prix: '29,99€' },
-  { icone: '🍼', nom: 'Pack Naissance',   desc: '1 an de souvenirs pour bébé',         prix: '44,99€' },
+  { icone: '🎉', nom: 'Pack Occasion',    desc: 'Weekend, Soirée, Voyage ou EVG',     prix: '9,99€' },
+  { icone: '💍', nom: 'Pack Mariage',     desc: "L'événement d'une vie",              prix: '29,99€' },
+  { icone: '👴', nom: 'Pack Mamie/Papy',  desc: '1 an de souvenirs partagés',         prix: '44,99€' },
 ]
 
 function GiftSection({ onCTA }) {
@@ -809,7 +866,7 @@ const FAQ_ITEMS = [
     r: "Non. Rejoindre une capsule et y déposer des souvenirs est toujours gratuit pour tout le monde. Seul le créateur de la capsule achète un pack.",
   },
   {
-    q: "Que se passe-t-il si j'arrête le Pack Naissance ou Mamie/Papy ?",
+    q: "Que se passe-t-il si j'arrête le Pack Mamie/Papy ?",
     r: "Vos capsules et tous vos souvenirs restent accessibles pour toujours. Les quotas mensuels ne se rechargent plus, mais rien n'est supprimé.",
   },
   {
@@ -818,15 +875,15 @@ const FAQ_ITEMS = [
   },
   {
     q: "Puis-je offrir un pack en cadeau ?",
-    r: "Oui. Les packs Occasion, Mariage et Naissance font d'excellents cadeaux. Contactez-nous pour créer un bon cadeau personnalisé.",
+    r: "Oui. Les packs Occasion, Mariage et Mamie/Papy font d'excellents cadeaux. Contactez-nous pour créer un bon cadeau personnalisé.",
   },
   {
     q: "Qu'est-ce que le Pack Mamie/Papy ?",
     r: "Une capsule mensuelle que votre famille alimente tout au long du mois. Le 1er de chaque mois, vos proches reçoivent une notification et découvrent tous les souvenirs que vous leur avez préparés. L'interface est ultra-simplifiée pour les personnes moins à l'aise avec le numérique.",
   },
   {
-    q: "Y a-t-il un engagement pour les packs récurrents ?",
-    r: "Non. Les packs Naissance et Mamie/Papy en mensuel sont résiliables à tout moment. La formule annuelle est facturée en une fois — économisez 15€/an.",
+    q: "Y a-t-il un engagement pour le Pack Mamie/Papy ?",
+    r: "Non. Le Pack Mamie/Papy en mensuel est résiliable à tout moment. La formule annuelle est facturée en une fois — économisez 15€/an.",
   },
 ]
 
@@ -1009,6 +1066,7 @@ export default function App() {
       <Mockups      />
       <Occasions    />
       <Testimonials />
+      <Gamification />
       <Privacy      />
       {/* Section tarifs — toggle mensuel/annuel, 3 cartes, réassurance */}
       <Pricing      onCTA={scrollToWaitlist} onScrollToStores={scrollToStores} />
