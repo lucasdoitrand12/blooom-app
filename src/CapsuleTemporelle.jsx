@@ -10268,8 +10268,8 @@ export default function App() {
   const [packSucces, setPackSucces] = useState(null);
   const [gami, setGami] = useState(null);
   const [gamiUnlock, setGamiUnlock] = useState(null);
-  const gamiInitRef = useRef(false);
-  const gamiPrevRef = useRef(null);
+  const gamiInitRef = React.useRef(false);
+  const gamiPrevRef = React.useRef(null);
 
   // Déclenche les toasts de badge/niveau quand gami change (résout la perte de badges en cas d'appels rapides)
   useEffect(() => {
