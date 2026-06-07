@@ -2899,7 +2899,7 @@ function EcranModifierProfil({ moi, modifierMoi, allerVers }) {
   );
 }
 
-function EcranProfil({ moi, capsules, gami, modifierMoi, allerVers }) {
+function EcranProfil({ moi, capsules, gami, modifierMoi, allerVers, seDeconnecter }) {
   // Stats parrainage chargées depuis Supabase
   const [statsParrainage, setStatsParrainage] = useState(null);
   const [copie, setCopie] = useState(false);
@@ -3112,6 +3112,21 @@ function EcranProfil({ moi, capsules, gami, modifierMoi, allerVers }) {
           <span style={{ marginLeft: "auto" }}>→</span>
         </button>
       </div>
+
+      <button
+        onClick={seDeconnecter}
+        style={{
+          width: "100%", marginTop: 8,
+          background: "none", border: `1.5px solid ${COULEURS.corail}40`,
+          borderRadius: 14, padding: "13px 0",
+          color: COULEURS.corail, fontSize: 14, fontWeight: 700,
+          cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}
+      >
+        <span>🚪</span>
+        <span>Se déconnecter</span>
+      </button>
     </div>
   );
 }
@@ -10497,6 +10512,10 @@ export default function App() {
   }
 
   // ── Suppression de compte complète (RGPD) ──────────────────────────────────
+  async function seDeconnecter() {
+    await supabase.auth.signOut();
+  }
+
   // Ordre : 1. récupérer les URLs médias, 2. supprimer fichiers Storage,
   // 3. enregistrer dans suppressions, 4. supprimer données BDD, 5. déconnecter.
   async function supprimerCompte() {
@@ -11010,7 +11029,7 @@ export default function App() {
   return (
     <CadreTelephone vars={vars}>
       {ecran === "capsules" && <EcranCapsules capsules={capsules} moi={moi} allerVers={allerVers} notifications={notifications} onOuvrirNotifs={() => setPanneauNotifs(true)} />}
-      {ecran === "profil"          && <EcranProfil moi={moi} capsules={capsules} gami={gami} modifierMoi={modifierMoi} allerVers={allerVers} />}
+      {ecran === "profil"          && <EcranProfil moi={moi} capsules={capsules} gami={gami} modifierMoi={modifierMoi} allerVers={allerVers} seDeconnecter={seDeconnecter} />}
       {ecran === "modifier_profil" && <EcranModifierProfil moi={moi} modifierMoi={modifierMoi} allerVers={allerVers} />}
       {ecran === "confidentialite" && <EcranConfidentialite allerVers={allerVers} session={session} onSupprimerCompte={supprimerCompte} />}
       {ecran === "abonnement"   && <EcranAbonnement moi={moi} allerVers={allerVers} />}
