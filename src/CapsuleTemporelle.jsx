@@ -5922,8 +5922,16 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
           setDatePrise(exif || new Date(file.lastModified).toISOString());
         };
 
-        // Style commun pour les inputs cachés à l'intérieur des labels
-        const inputHidden = { position: "absolute", opacity: 0, width: "1px", height: "1px", pointerEvents: "none" };
+        // L'input recouvre toute la surface du label (position absolute 100%×100%, opacity 0).
+        // Sans pointerEvents:none — l'utilisateur tape directement l'input, iOS déclenche onChange.
+        // Le contenu texte a pointerEvents:none pour laisser passer les taps vers l'input dessous.
+        const inputOverlay = {
+          position: "absolute", top: 0, left: 0,
+          width: "100%", height: "100%",
+          opacity: 0, cursor: "pointer",
+          fontSize: "100px", // empêche le zoom iOS au double-tap
+        };
+        const noPtr = { pointerEvents: "none" };
 
         if (media) {
           return (
@@ -5942,12 +5950,12 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
                 ✅ Ajouter à la capsule
               </button>
 
-              {/* Reprendre = ouvre directement le sélecteur de fichier via label */}
-              <label style={{ display: "block", textAlign: "center", padding: "8px 0",
-                color: COULEURS.doux, fontSize: 14, fontWeight: 600, cursor: "pointer",
-                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                <input type="file" accept={accept} capture="environment" style={inputHidden} onChange={onSelect} />
-                ↩ Reprendre une autre {typeContrib === "photo" ? "photo" : "vidéo"}
+              <label style={{ position: "relative", display: "block", textAlign: "center",
+                padding: "8px 0", color: COULEURS.doux, fontSize: 14, fontWeight: 600,
+                cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                <input type="file" accept={accept} capture="environment"
+                  style={inputOverlay} onChange={onSelect} />
+                <span style={noPtr}>↩ Reprendre une autre {typeContrib === "photo" ? "photo" : "vidéo"}</span>
               </label>
             </>
           );
@@ -5957,27 +5965,29 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
           <>
             <label style={S.label}>Votre {typeContrib === "photo" ? "photo" : "vidéo"}</label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              {/* Caméra — label déclenche l'input nativement, sans .click() JavaScript */}
-              <label style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              <label style={{ position: "relative", overflow: "hidden",
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 padding: "13px 0", borderRadius: 14,
                 background: "linear-gradient(135deg,#3730a3,#6d28d9)", color: "#fff",
                 fontWeight: 700, fontSize: 13, cursor: "pointer",
                 fontFamily: "'Plus Jakarta Sans', sans-serif",
                 boxShadow: "0 3px 10px rgba(109,40,217,0.3)" }}>
-                <input type="file" accept={accept} capture="environment" style={inputHidden} onChange={onSelect} />
-                <span>{typeContrib === "photo" ? "📷" : "🎬"}</span>
-                <span>{typeContrib === "photo" ? "Prendre une photo" : "Filmer (max 20s)"}</span>
+                <input type="file" accept={accept} capture="environment"
+                  style={inputOverlay} onChange={onSelect} />
+                <span style={noPtr}>{typeContrib === "photo" ? "📷" : "🎬"}</span>
+                <span style={noPtr}>{typeContrib === "photo" ? "Prendre une photo" : "Filmer (max 20s)"}</span>
               </label>
-              {/* Galerie — sans capture pour accéder à la bibliothèque */}
-              <label style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              <label style={{ position: "relative", overflow: "hidden",
+                flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 padding: "13px 0", borderRadius: 14, border: `1.5px solid ${COULEURS.doux}40`,
                 background: "var(--carte-bg)", color: COULEURS.encre,
                 fontWeight: 700, fontSize: 13, cursor: "pointer",
                 fontFamily: "'Plus Jakarta Sans', sans-serif",
                 boxShadow: "0 2px 8px rgba(46,34,48,0.06)" }}>
-                <input type="file" accept={accept} style={inputHidden} onChange={onSelect} />
-                <span>🖼️</span>
-                <span>Galerie</span>
+                <input type="file" accept={accept}
+                  style={inputOverlay} onChange={onSelect} />
+                <span style={noPtr}>🖼️</span>
+                <span style={noPtr}>Galerie</span>
               </label>
             </div>
           </>
