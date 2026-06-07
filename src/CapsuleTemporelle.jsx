@@ -3128,7 +3128,7 @@ function EcranCreation({ allerVers, creerCapsule }) {
   const [enCours, setEnCours] = useState(false);
 
   function choisirType(t) { setType(t.id); }
-  const peutCreer = nom.trim().length > 0 && type !== null && date !== "";
+  const peutCreer = nom.trim().length > 0 && type !== null;
 
   return (
     <div style={S.ecran}>
