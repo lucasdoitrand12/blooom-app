@@ -5962,7 +5962,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
                 value={texte} onChange={(ev) => setTexte(ev.target.value)} />
 
               <button type="button" style={S.boutonPrincipal} onClick={envoyer}>
-                ✅ Ajouter à la capsule
+                🔒 Sceller ce souvenir
               </button>
 
               <label style={{ position: "relative", display: "block", textAlign: "center",
