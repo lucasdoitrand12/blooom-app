@@ -10074,7 +10074,7 @@ function EcranPapyStandalone({ capsuleId }) {
 //  ÉCRAN CONNEXION
 // ============================================================================
 function EcranConnexion() {
-  const [mode, setMode] = useState(null); // null=choix, "inscription", "connexion", "papy"
+  const [mode, setMode] = useState(null); // null=choix, "inscription", "connexion", "papy", "oubli"
   const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [chargement, setChargement] = useState(false);
@@ -10111,6 +10111,17 @@ function EcranConnexion() {
     setChargement(false);
     if (error) setErreur(traduitErreur(error.message));
     // Si succès : onAuthStateChange dans App() prend le relai automatiquement
+  }
+
+  async function envoyerReinit() {
+    if (!email.trim()) { setErreur("Saisissez votre adresse e-mail."); return; }
+    setChargement(true); setErreur("");
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    setChargement(false);
+    if (error) { setErreur(traduitErreur(error.message)); return; }
+    setConfirme(true);
   }
 
   async function rejoindrePapy() {
@@ -10220,6 +10231,47 @@ function EcranConnexion() {
     </CadreTelephone>
   );
 
+  // Mot de passe oublié
+  if (mode === "oubli") return (
+    <CadreTelephone>
+      <div style={{ ...S.ecran, justifyContent: "center" }}>
+        <EnTeteRetour titre="Mot de passe oublié" onRetour={() => { setMode("connexion"); setErreur(""); setConfirme(false); }} />
+        {confirme ? (
+          <>
+            <div style={{ textAlign: "center", fontSize: 48, marginBottom: 16 }}>📬</div>
+            <p style={{ textAlign: "center", fontWeight: 700, fontSize: 16, color: COULEURS.encre, marginBottom: 8 }}>
+              E-mail envoyé !
+            </p>
+            <p style={{ textAlign: "center", fontSize: 14, color: COULEURS.doux, lineHeight: 1.6 }}>
+              Consultez votre boîte mail et cliquez sur le lien pour choisir un nouveau mot de passe.
+            </p>
+            <button style={S.boutonPrincipal} onClick={() => { setMode("connexion"); setConfirme(false); }}>
+              Retour à la connexion
+            </button>
+          </>
+        ) : (
+          <>
+            <p style={{ fontSize: 14, color: COULEURS.doux, marginBottom: 16, lineHeight: 1.6 }}>
+              Saisissez votre adresse e-mail. Vous recevrez un lien pour créer un nouveau mot de passe.
+            </p>
+            <label style={S.label}>Adresse e-mail</label>
+            <input style={S.input} type="email" placeholder="vous@exemple.com"
+              value={email} onChange={(e) => setEmail(e.target.value)} autoFocus
+              onKeyDown={(e) => e.key === "Enter" && !chargement && envoyerReinit()} />
+            {erreur && <p style={{ ...S.aide, color: COULEURS.corail, marginTop: 8 }}>⚠ {erreur}</p>}
+            <button
+              style={{ ...S.boutonPrincipal, ...(!email.trim() || chargement ? S.boutonDesactive : {}) }}
+              disabled={!email.trim() || chargement}
+              onClick={envoyerReinit}
+            >
+              {chargement ? "Envoi…" : "Envoyer le lien"}
+            </button>
+          </>
+        )}
+      </div>
+    </CadreTelephone>
+  );
+
   // Formulaire
   const estInscription = mode === "inscription";
   const peutSoumettre = email.trim() && motDePasse.length >= 6 && !chargement;
@@ -10239,6 +10291,15 @@ function EcranConnexion() {
           value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && peutSoumettre && (estInscription ? sInscrire() : seConnecter())}
         />
+        {!estInscription && (
+          <button type="button"
+            onClick={() => { setMode("oubli"); setErreur(""); }}
+            style={{ background: "none", border: "none", color: COULEURS.doux, fontSize: 13,
+              cursor: "pointer", padding: "4px 0", fontFamily: "'Plus Jakarta Sans', sans-serif",
+              fontWeight: 600, textAlign: "right", width: "100%" }}>
+            Mot de passe oublié ?
+          </button>
+        )}
         {erreur && <p style={{ ...S.aide, color: COULEURS.corail, marginTop: 8 }}>⚠ {erreur}</p>}
         <button
           style={{ ...S.boutonPrincipal, ...(!peutSoumettre ? S.boutonDesactive : {}) }}
@@ -10261,11 +10322,76 @@ function EcranConnexion() {
 }
 
 // ============================================================================
+//  ÉCRAN NOUVEAU MOT DE PASSE — affiché après clic sur le lien de réinitialisation
+// ============================================================================
+function EcranNouveauMotDePasse({ onTermine }) {
+  const [mdp, setMdp] = useState("");
+  const [confirme, setConfirme] = useState("");
+  const [chargement, setChargement] = useState(false);
+  const [erreur, setErreur] = useState("");
+  const [succes, setSucces] = useState(false);
+
+  async function valider() {
+    if (mdp.length < 6) { setErreur("Le mot de passe doit contenir au moins 6 caractères."); return; }
+    if (mdp !== confirme) { setErreur("Les mots de passe ne correspondent pas."); return; }
+    setChargement(true); setErreur("");
+    const { error } = await supabase.auth.updateUser({ password: mdp });
+    setChargement(false);
+    if (error) { setErreur(error.message); return; }
+    setSucces(true);
+    await supabase.auth.signOut();
+    setTimeout(onTermine, 1800);
+  }
+
+  return (
+    <CadreTelephone>
+      <div style={{ ...S.ecran, justifyContent: "center" }}>
+        <div style={{ textAlign: "center", fontSize: 48, marginBottom: 8 }}>🔑</div>
+        <h2 style={{ textAlign: "center", fontFamily: "'Bricolage Grotesque',sans-serif",
+          fontSize: 22, fontWeight: 800, color: COULEURS.encre, marginBottom: 4 }}>
+          Nouveau mot de passe
+        </h2>
+        {succes ? (
+          <>
+            <div style={{ textAlign: "center", fontSize: 48, marginTop: 16 }}>✅</div>
+            <p style={{ textAlign: "center", fontSize: 15, fontWeight: 700, color: COULEURS.encre, marginTop: 12 }}>
+              Mot de passe mis à jour !
+            </p>
+            <p style={{ textAlign: "center", fontSize: 13, color: COULEURS.doux, marginTop: 6 }}>
+              Vous allez être redirigé vers la connexion…
+            </p>
+          </>
+        ) : (
+          <>
+            <label style={S.label}>Nouveau mot de passe</label>
+            <input style={S.input} type="password" placeholder="6 caractères minimum"
+              value={mdp} onChange={(e) => setMdp(e.target.value)} autoFocus />
+            <label style={S.label}>Confirmer le mot de passe</label>
+            <input style={S.input} type="password" placeholder="Répétez le mot de passe"
+              value={confirme} onChange={(e) => setConfirme(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !chargement && valider()} />
+            {erreur && <p style={{ ...S.aide, color: COULEURS.corail, marginTop: 8 }}>⚠ {erreur}</p>}
+            <button
+              style={{ ...S.boutonPrincipal, ...(mdp.length < 6 || chargement ? S.boutonDesactive : {}) }}
+              disabled={mdp.length < 6 || chargement}
+              onClick={valider}
+            >
+              {chargement ? "Mise à jour…" : "Valider mon nouveau mot de passe"}
+            </button>
+          </>
+        )}
+      </div>
+    </CadreTelephone>
+  );
+}
+
+// ============================================================================
 //  7. COMPOSANT PRINCIPAL — App
 // ============================================================================
 export default function App() {
   const [session, setSession] = useState(null);
   const [sessionPrete, setSessionPrete] = useState(false);
+  const [reinitMdp, setReinitMdp] = useState(false);
   const [moi, setMoi] = useState(null);
   const [capsules, setCapsules] = useState([]);
   const [chargement, setChargement] = useState(true);
@@ -10422,7 +10548,8 @@ export default function App() {
       setSession(session);
       setSessionPrete(true);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") { setReinitMdp(true); }
       setSession(session);
     });
     return () => subscription.unsubscribe();
@@ -11012,6 +11139,7 @@ export default function App() {
   );
 
   if (!sessionPrete || chargement) return <CadreTelephone vars={vars}><div style={S.ecran} /></CadreTelephone>;
+  if (reinitMdp) return <EcranNouveauMotDePasse onTermine={() => setReinitMdp(false)} />;
   if (!session) {
     const papyId = (() => { try { return localStorage.getItem("blooom_papy_capsule_id"); } catch { return null; } })();
     if (papyId) return <EcranPapyStandalone capsuleId={papyId} />;
