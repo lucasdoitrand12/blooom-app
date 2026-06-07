@@ -10372,9 +10372,11 @@ export default function App() {
   // Navigue vers l'écran de création du pack une fois l'utilisateur connecté et les données chargées
   useEffect(() => {
     if (!packSucces || chargement || !session) return;
-    // Crédite les points et badges pour les packs Inoubliable et Mariage
+    // Crédite les points pour tous les packs payants
     if (packSucces === "occasion" || packSucces === "mariage") {
       incrementerGami({ points: 4, packs_inoubliables_achetes: 1 });
+    } else if (packSucces === "papy") {
+      incrementerGami({ points: 3 });
     }
     allerVers(packSucces === "mariage" ? "succes_mariage" : packSucces === "papy" ? "succes_papy" : "succes_pack");
     setPackSucces(null);
@@ -10463,7 +10465,22 @@ export default function App() {
       supabase.from("gamification").select("*").eq("user_id", session.user.id).maybeSingle(),
     ]);
     if (profil) setMoi(normaliserProfil(profil));
-    setGami(gamiDB || GAMI_VIDE);
+    // Fusionne DB + état local : prend le max de chaque compteur.
+    // Évite qu'un rechargement déclenché par Realtime écrase une progression locale
+    // en attente d'écriture (RPC fire-and-forget).
+    setGami(prev => {
+      const db = gamiDB || GAMI_VIDE;
+      if (!prev) return db;
+      return {
+        points_total:               Math.max(prev.points_total,               db.points_total),
+        niveau:                     Math.max(prev.niveau,                     db.niveau),
+        capsules_creees:            Math.max(prev.capsules_creees,            db.capsules_creees),
+        souvenirs_deposes:          Math.max(prev.souvenirs_deposes,          db.souvenirs_deposes),
+        parrainages_acceptes:       Math.max(prev.parrainages_acceptes,       db.parrainages_acceptes),
+        capsules_papy_ouvertes:     Math.max(prev.capsules_papy_ouvertes,     db.capsules_papy_ouvertes),
+        packs_inoubliables_achetes: Math.max(prev.packs_inoubliables_achetes, db.packs_inoubliables_achetes),
+      };
+    });
     if (capsulesDB) {
       const liste = capsulesDB.map(normaliserCapsule);
       // Applique la photo de profil sur toutes les entrées participant de l'utilisateur
