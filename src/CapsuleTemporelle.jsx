@@ -3111,22 +3111,6 @@ function EcranProfil({ moi, capsules, gami, modifierMoi, allerVers }) {
           <span>Confidentialité &amp; sécurité</span>
           <span style={{ marginLeft: "auto" }}>→</span>
         </button>
-        {moi.isAdmin && (
-          <button
-            onClick={() => allerVers("admin")}
-            style={{
-              background: "none", border: "none", color: COULEURS.corail,
-              fontSize: 14, cursor: "pointer", padding: "8px 0",
-              display: "flex", alignItems: "center", gap: 8,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontWeight: 700, width: "100%",
-            }}
-          >
-            <span>🛠️</span>
-            <span>Back office</span>
-            <span style={{ marginLeft: "auto" }}>→</span>
-          </button>
-        )}
       </div>
     </div>
   );
@@ -5507,7 +5491,8 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
   }, [typeContrib]);
 
   const [texte, setTexte] = useState("");
-  const [media, setMedia] = useState(null);
+  const [media, setMedia] = useState(null);         // File object (pour l'upload)
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState(null); // blob URL (pour l'affichage)
   const [filtre, setFiltre] = useState("original");
   const [ambiance, setAmbiance] = useState("soleil");
   const [enregistrement, setEnregistrement] = useState(false);
@@ -5560,8 +5545,9 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
       clearInterval(chronoRef.current);
       audioCtxRef.current?.close();
       if (audioUrl) URL.revokeObjectURL(audioUrl);
+      if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
     };
-  }, [audioUrl]);
+  }, [audioUrl, mediaPreviewUrl]);
 
   // Boucle d'animation : lit les fréquences et dessine les barres en dégradé Blooom.
   function lancerViz() {
@@ -5909,65 +5895,91 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
 
       {(typeContrib === "photo" || typeContrib === "video") && (() => {
         const accept = typeContrib === "photo" ? "image/*" : "video/*";
+
         const onSelect = async (e) => {
-          const file = e.target.files[0]; if (!file) return;
+          const file = e.target.files?.[0];
+          if (!file) return;
           if (typeContrib === "video") {
+            const tmpUrl = URL.createObjectURL(file);
             const duree = await new Promise(res => {
               const v = document.createElement("video");
               v.preload = "metadata";
-              v.onloadedmetadata = () => { URL.revokeObjectURL(v.src); res(v.duration); };
-              v.onerror = () => res(null);
-              v.src = URL.createObjectURL(file);
+              v.onloadedmetadata = () => { URL.revokeObjectURL(tmpUrl); res(v.duration); };
+              v.onerror = () => { URL.revokeObjectURL(tmpUrl); res(null); };
+              v.src = tmpUrl;
             });
             if (duree > 20) {
               alert(`Vidéo trop longue (${Math.round(duree)}s). Maximum 20 secondes.`);
-              e.target.value = "";
               return;
             }
           }
-          lireFichierEnBase64(e, setMedia);
+          // Libère l'ancienne URL avant d'en créer une nouvelle
+          if (mediaPreviewUrl) URL.revokeObjectURL(mediaPreviewUrl);
+          const preview = URL.createObjectURL(file);
+          setMedia(file);           // File object → passé à uploaderFichier (File extends Blob)
+          setMediaPreviewUrl(preview);
           const exif = typeContrib === "photo" ? await lireExifDate(file) : null;
           setDatePrise(exif || new Date(file.lastModified).toISOString());
         };
+
+        // Style commun pour les inputs cachés à l'intérieur des labels
+        const inputHidden = { position: "absolute", opacity: 0, width: "1px", height: "1px", pointerEvents: "none" };
+
+        if (media) {
+          return (
+            <>
+              {typeContrib === "photo"
+                ? <img src={mediaPreviewUrl} alt="aperçu"
+                    style={{ width: "100%", borderRadius: 16, display: "block", maxHeight: 380, objectFit: "cover" }} />
+                : <video src={mediaPreviewUrl} controls playsInline
+                    style={{ width: "100%", borderRadius: 16, display: "block" }} />}
+
+              <input style={{ ...S.input, marginTop: 10 }}
+                placeholder="Ajouter un commentaire… (optionnel)"
+                value={texte} onChange={(ev) => setTexte(ev.target.value)} />
+
+              <button type="button" style={S.boutonPrincipal} onClick={envoyer}>
+                ✅ Ajouter à la capsule
+              </button>
+
+              {/* Reprendre = ouvre directement le sélecteur de fichier via label */}
+              <label style={{ display: "block", textAlign: "center", padding: "8px 0",
+                color: COULEURS.doux, fontSize: 14, fontWeight: 600, cursor: "pointer",
+                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                <input type="file" accept={accept} capture="environment" style={inputHidden} onChange={onSelect} />
+                ↩ Reprendre une autre {typeContrib === "photo" ? "photo" : "vidéo"}
+              </label>
+            </>
+          );
+        }
+
         return (
           <>
-            {/* Inputs cachés — déclenchés par les boutons via refs */}
-            <input ref={inputCameraRef}  type="file" accept={accept} capture="environment"
-              style={{ position: "absolute", width: 0, height: 0, opacity: 0, overflow: "hidden" }}
-              onChange={onSelect} />
-            <input ref={inputGalerieRef} type="file" accept={accept}
-              style={{ position: "absolute", width: 0, height: 0, opacity: 0, overflow: "hidden" }}
-              onChange={onSelect} />
-
-            <label style={S.label}>Date et heure du souvenir</label>
-            <DateTimePicker value={datePrise} onChange={setDatePrise} />
             <label style={S.label}>Votre {typeContrib === "photo" ? "photo" : "vidéo"}</label>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <button type="button" onClick={() => inputCameraRef.current?.click()}
-                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  padding: "13px 0", borderRadius: 14, border: "none",
-                  background: "linear-gradient(135deg,#3730a3,#6d28d9)", color: "#fff",
-                  fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  boxShadow: "0 3px 10px rgba(109,40,217,0.3)" }}>
+              {/* Caméra — label déclenche l'input nativement, sans .click() JavaScript */}
+              <label style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "13px 0", borderRadius: 14,
+                background: "linear-gradient(135deg,#3730a3,#6d28d9)", color: "#fff",
+                fontWeight: 700, fontSize: 13, cursor: "pointer",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: "0 3px 10px rgba(109,40,217,0.3)" }}>
+                <input type="file" accept={accept} capture="environment" style={inputHidden} onChange={onSelect} />
                 <span>{typeContrib === "photo" ? "📷" : "🎬"}</span>
-                <span>{typeContrib === "photo" ? "Prendre une photo" : "Filmer"}</span>
-              </button>
-              <button type="button" onClick={() => inputGalerieRef.current?.click()}
-                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                  padding: "13px 0", borderRadius: 14, border: `1.5px solid ${COULEURS.doux}40`,
-                  background: "var(--carte-bg)", color: COULEURS.encre,
-                  fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  boxShadow: "0 2px 8px rgba(46,34,48,0.06)" }}>
+                <span>{typeContrib === "photo" ? "Prendre une photo" : "Filmer (max 20s)"}</span>
+              </label>
+              {/* Galerie — sans capture pour accéder à la bibliothèque */}
+              <label style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "13px 0", borderRadius: 14, border: `1.5px solid ${COULEURS.doux}40`,
+                background: "var(--carte-bg)", color: COULEURS.encre,
+                fontWeight: 700, fontSize: 13, cursor: "pointer",
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                boxShadow: "0 2px 8px rgba(46,34,48,0.06)" }}>
+                <input type="file" accept={accept} style={inputHidden} onChange={onSelect} />
                 <span>🖼️</span>
                 <span>Galerie</span>
-              </button>
+              </label>
             </div>
-            {media && typeContrib === "photo" && <img src={media} alt="aperçu" style={S.apercuMedia} />}
-            {media && typeContrib === "video" && <video src={media} controls style={S.apercuMedia} />}
-            <label style={S.label}>Une légende (optionnel)</label>
-            <input style={S.input} placeholder="Quelques mots..." value={texte} onChange={(e) => setTexte(e.target.value)} />
           </>
         );
       })()}
@@ -6234,7 +6246,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
         </>
       )}
 
-      {typeContrib && (
+      {typeContrib && !((typeContrib === "photo" || typeContrib === "video") && media) && (
         <>
           {/* Preuve sociale discrète : renforce la motivation juste avant de sceller,
               sans alourdir visuellement l'acte de dépôt */}
@@ -10256,6 +10268,20 @@ export default function App() {
   const [packSucces, setPackSucces] = useState(null);
   const [gami, setGami] = useState(null);
   const [gamiUnlock, setGamiUnlock] = useState(null);
+  const gamiInitRef = useRef(false);
+  const gamiPrevRef = useRef(null);
+
+  // Déclenche les toasts de badge/niveau quand gami change (résout la perte de badges en cas d'appels rapides)
+  useEffect(() => {
+    if (!gami) return;
+    if (!gamiInitRef.current) { gamiInitRef.current = true; gamiPrevRef.current = gami; return; }
+    const prev = gamiPrevRef.current || GAMI_VIDE;
+    const anciensBadges = badgesDebloques(prev);
+    const nouveauxBadges = badgesDebloques(gami).filter(b => !anciensBadges.some(a => a.slug === b.slug));
+    if (gami.niveau > prev.niveau) setGamiUnlock({ type: "niveau", niveau: gami.niveau });
+    else if (nouveauxBadges.length) setGamiUnlock({ type: "badge", badges: nouveauxBadges });
+    gamiPrevRef.current = gami;
+  }, [gami]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Vérifie le mode maintenance au démarrage et écoute les changements en temps réel
   useEffect(() => {
@@ -10600,27 +10626,20 @@ export default function App() {
   // --- Gamification ---
   async function incrementerGami(delta) {
     if (!session) return;
-    const ancien = gami || GAMI_VIDE;
-    const anciensBadges = badgesDebloques(ancien);
-    const nouvel = {
-      ...ancien,
-      points_total:               ancien.points_total               + (delta.points                     || 0),
-      capsules_creees:            ancien.capsules_creees            + (delta.capsules_creees            || 0),
-      souvenirs_deposes:          ancien.souvenirs_deposes          + (delta.souvenirs_deposes          || 0),
-      parrainages_acceptes:       ancien.parrainages_acceptes       + (delta.parrainages_acceptes       || 0),
-      capsules_papy_ouvertes:     ancien.capsules_papy_ouvertes     + (delta.capsules_papy_ouvertes     || 0),
-      packs_inoubliables_achetes: ancien.packs_inoubliables_achetes + (delta.packs_inoubliables_achetes || 0),
-    };
-    nouvel.niveau = niveauDepuisPoints(nouvel.points_total).niveau;
-    setGami(nouvel);
-
-    if (nouvel.niveau > ancien.niveau) {
-      setGamiUnlock({ type: "niveau", niveau: nouvel.niveau });
-    } else {
-      const nouveauxBadges = badgesDebloques(nouvel).filter(b => !anciensBadges.some(a => a.slug === b.slug));
-      if (nouveauxBadges.length) setGamiUnlock({ type: "badge", badges: nouveauxBadges });
-    }
-
+    setGami(prev => {
+      const a = prev || GAMI_VIDE;
+      const nouvel = {
+        ...a,
+        points_total:               a.points_total               + (delta.points                     || 0),
+        capsules_creees:            a.capsules_creees            + (delta.capsules_creees            || 0),
+        souvenirs_deposes:          a.souvenirs_deposes          + (delta.souvenirs_deposes          || 0),
+        parrainages_acceptes:       a.parrainages_acceptes       + (delta.parrainages_acceptes       || 0),
+        capsules_papy_ouvertes:     a.capsules_papy_ouvertes     + (delta.capsules_papy_ouvertes     || 0),
+        packs_inoubliables_achetes: a.packs_inoubliables_achetes + (delta.packs_inoubliables_achetes || 0),
+      };
+      nouvel.niveau = niveauDepuisPoints(nouvel.points_total).niveau;
+      return nouvel;
+    });
     supabase.rpc("incrementer_gamification", {
       p_user_id:                    session.user.id,
       p_points:                     delta.points                     || 0,
