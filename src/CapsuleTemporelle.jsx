@@ -3961,7 +3961,7 @@ function VoirEnsembleButton({ capsule, moi, insererNotification }) {
   );
 }
 
-function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, modifierNom, modifierCouverture, editerParticipant, voterPari, voterSouvenir, onPaywall, insererNotification, supprimerCapsule, marierParticipant, capsulesLiees }) {
+function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, modifierNom, modifierCouverture, editerParticipant, voterPari, voterSouvenir, onPaywall, insererNotification, supprimerCapsule, quitterCapsule, marierParticipant, capsulesLiees }) {
   const [editionDate, setEditionDate] = useState(false);
   const [nouvelleDate, setNouvelleDate] = useState(capsule?.dateOuverture || "");
   const [editionNom, setEditionNom] = useState(false);
@@ -4485,45 +4485,80 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
         </div>
       )}
 
-      {/* Suppression — visible uniquement pour le créateur */}
-      {moi?.id === capsule.createurId && supprimerCapsule && (
-        <div style={{ marginTop: 32, paddingTop: 16, borderTop: `1px solid ${COULEURS.bordure}` }}>
-          {!confirmSuppression ? (
-            <button
-              onClick={() => setConfirmSuppression(true)}
-              style={{ background: "none", border: "none", color: COULEURS.doux, fontSize: 12,
-                cursor: "pointer", padding: "4px 0", fontFamily: "'Plus Jakarta Sans', sans-serif",
-                opacity: 0.6, textDecoration: "underline" }}>
-              🗑️ Supprimer cette capsule
-            </button>
-          ) : (
-            <div style={{ background: "#FFF1F1", borderRadius: 14, padding: "14px 16px",
-              border: "1px solid #FECACA" }}>
-              <p style={{ margin: "0 0 12px", fontSize: 13, color: "#7F1D1D", fontWeight: 600,
-                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                Supprimer « {capsule.nom} » ? Tous les souvenirs seront perdus définitivement.
-              </p>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => supprimerCapsule(capsule.id)}
-                  style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
-                    background: "#DC2626", color: "#fff", fontWeight: 700, fontSize: 13,
-                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  Oui, supprimer
-                </button>
-                <button
-                  onClick={() => setConfirmSuppression(false)}
-                  style={{ flex: 1, padding: "10px 0", borderRadius: 10,
-                    border: `1px solid ${COULEURS.bordure}`, background: "none",
-                    color: COULEURS.doux, fontWeight: 600, fontSize: 13,
-                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                  Annuler
-                </button>
+      {/* Suppression (créateur) ou départ (participant) */}
+      {(() => {
+        const estCreateur = moi?.id === capsule.createurId;
+        const monParticipant = capsule.participants?.find(p => p.userId === moi?.id);
+        if (estCreateur && supprimerCapsule) return (
+          <div style={{ marginTop: 32, paddingTop: 16, borderTop: `1px solid ${COULEURS.bordure}` }}>
+            {!confirmSuppression ? (
+              <button onClick={() => setConfirmSuppression(true)}
+                style={{ background: "none", border: "none", color: COULEURS.doux, fontSize: 12,
+                  cursor: "pointer", padding: "4px 0", fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  opacity: 0.6, textDecoration: "underline" }}>
+                🗑️ Supprimer cette capsule
+              </button>
+            ) : (
+              <div style={{ background: "#FFF1F1", borderRadius: 14, padding: "14px 16px", border: "1px solid #FECACA" }}>
+                <p style={{ margin: "0 0 12px", fontSize: 13, color: "#7F1D1D", fontWeight: 600,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Supprimer « {capsule.nom} » ? Tous les souvenirs seront perdus définitivement.
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => supprimerCapsule(capsule.id)}
+                    style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+                      background: "#DC2626", color: "#fff", fontWeight: 700, fontSize: 13,
+                      cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Oui, supprimer
+                  </button>
+                  <button onClick={() => setConfirmSuppression(false)}
+                    style={{ flex: 1, padding: "10px 0", borderRadius: 10,
+                      border: `1px solid ${COULEURS.bordure}`, background: "none",
+                      color: COULEURS.doux, fontWeight: 600, fontSize: 13,
+                      cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Annuler
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        );
+        if (!estCreateur && monParticipant && quitterCapsule) return (
+          <div style={{ marginTop: 32, paddingTop: 16, borderTop: `1px solid ${COULEURS.bordure}` }}>
+            {!confirmSuppression ? (
+              <button onClick={() => setConfirmSuppression(true)}
+                style={{ background: "none", border: "none", color: COULEURS.doux, fontSize: 12,
+                  cursor: "pointer", padding: "4px 0", fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  opacity: 0.6, textDecoration: "underline" }}>
+                🚪 Quitter cette capsule
+              </button>
+            ) : (
+              <div style={{ background: "#FFF1F1", borderRadius: 14, padding: "14px 16px", border: "1px solid #FECACA" }}>
+                <p style={{ margin: "0 0 12px", fontSize: 13, color: "#7F1D1D", fontWeight: 600,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Quitter « {capsule.nom} » ? Vous n'y aurez plus accès.
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => quitterCapsule(capsule.id, monParticipant.id)}
+                    style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+                      background: "#DC2626", color: "#fff", fontWeight: 700, fontSize: 13,
+                      cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Oui, quitter
+                  </button>
+                  <button onClick={() => setConfirmSuppression(false)}
+                    style={{ flex: 1, padding: "10px 0", borderRadius: 10,
+                      border: `1px solid ${COULEURS.bordure}`, background: "none",
+                      color: COULEURS.doux, fontWeight: 600, fontSize: 13,
+                      cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+        return null;
+      })()}
     </div>
   );
 }
@@ -11452,6 +11487,12 @@ export default function App() {
     allerVers("capsules");
   }
 
+  async function quitterCapsule(capsuleId, participantId) {
+    await supabase.from("participants").delete().eq("id", participantId);
+    setCapsules(l => l.filter(c => c.id !== capsuleId));
+    allerVers("capsules");
+  }
+
   async function marierParticipant(capsuleId, participantId, estMarie) {
     const capsule = capsules.find(c => c.id === capsuleId);
     if (!capsule || capsule.createurId !== moi?.id) return;
@@ -11766,7 +11807,7 @@ export default function App() {
           modifierDate={modifierDate} modifierNom={modifierNom} modifierCouverture={modifierCouverture}
           editerParticipant={editerParticipant} voterPari={voterPari} voterSouvenir={voterSouvenir} onPaywall={setPaywallType}
           insererNotification={insererNotification} supprimerCapsule={supprimerCapsule}
-          marierParticipant={marierParticipant}
+          quitterCapsule={quitterCapsule} marierParticipant={marierParticipant}
           capsulesLiees={capsuleActive?.formule === "papy"
             ? capsules.filter(c => c.formule === "papy" && c.id !== capsuleActive.id && c.participants.some(p => p.userId === moi?.id))
             : undefined} />
