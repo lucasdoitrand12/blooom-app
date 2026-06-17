@@ -9898,7 +9898,7 @@ function EcranSuccesPapy({ creerCapsule, allerVers }) {
 // ============================================================================
 //  ONGLET PAPY / MAMIE — hub mensuel : setup, capsule en cours, mois précédents
 // ============================================================================
-function EcranPapy({ capsules, moi, allerVers, creerCapsule, modifierNom, modifierCouverture }) {
+function EcranPapy({ capsules, moi, allerVers, creerCapsule, modifierNom, modifierCouverture, supprimerCapsule }) {
   const now = new Date();
 
   const papyCapsules = capsules
@@ -9925,9 +9925,10 @@ function EcranPapy({ capsules, moi, allerVers, creerCapsule, modifierNom, modifi
   const enCours         = !dateOuv || dateOuv > now;
   const joursJ          = dateOuv ? Math.ceil((dateOuv - now) / 86400000) : null;
 
-  const [editionNom, setEditionNom]   = useState(false);
+  const [editionNom, setEditionNom]         = useState(false);
   const [nouveauNom, setNouveauNom]         = useState(capsuleActuelle.nom);
   const [srcRecadrageCouv, setSrcRecadrageCouv] = useState(null);
+  const [confirmSuppression, setConfirmSuppression] = useState(false);
 
   return (
     <div style={{ ...S.ecran, padding: "0 0 96px" }}>
@@ -10137,6 +10138,46 @@ function EcranPapy({ capsules, moi, allerVers, creerCapsule, modifierNom, modifi
                 <span style={{ fontSize: 18, color: COULEURS.doux }}>›</span>
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Suppression — créateur uniquement */}
+        {estCreateur && supprimerCapsule && (
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: `1px solid ${COULEURS.bordure}` }}>
+            {!confirmSuppression ? (
+              <button
+                onClick={() => setConfirmSuppression(true)}
+                style={{ background: "none", border: "none", color: COULEURS.doux, fontSize: 12,
+                  cursor: "pointer", padding: "4px 0", fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  opacity: 0.6, textDecoration: "underline" }}>
+                🗑️ Supprimer cette capsule
+              </button>
+            ) : (
+              <div style={{ background: "#FFF1F1", borderRadius: 14, padding: "14px 16px",
+                border: "1px solid #FECACA" }}>
+                <p style={{ margin: "0 0 12px", fontSize: 13, color: "#7F1D1D", fontWeight: 600,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  Supprimer « {capsuleActuelle.nom} » ? Tous les souvenirs seront perdus définitivement.
+                </p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    onClick={() => { supprimerCapsule(capsuleActuelle.id); allerVers("capsules"); }}
+                    style={{ flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+                      background: "#DC2626", color: "#fff", fontWeight: 700, fontSize: 13,
+                      cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Oui, supprimer
+                  </button>
+                  <button
+                    onClick={() => setConfirmSuppression(false)}
+                    style={{ flex: 1, padding: "10px 0", borderRadius: 10,
+                      border: `1px solid ${COULEURS.bordure}`, background: "none",
+                      color: COULEURS.doux, fontWeight: 600, fontSize: 13,
+                      cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -11749,7 +11790,8 @@ export default function App() {
       )}
       {ecran === "papy" && (
         <EcranPapy capsules={capsules} moi={moi} allerVers={allerVers}
-          creerCapsule={creerCapsule} modifierNom={modifierNom} modifierCouverture={modifierCouverture} />
+          creerCapsule={creerCapsule} modifierNom={modifierNom} modifierCouverture={modifierCouverture}
+          supprimerCapsule={supprimerCapsule} />
       )}
       {ecran === "tarifs_impression" && (
         <EcranTarifsImpression capsule={capsuleActive} allerVers={allerVers} />
