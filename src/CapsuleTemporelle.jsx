@@ -5279,27 +5279,44 @@ function EcranSuccesPack({ creerCapsule, allerVers, capsuleWebhookId, setCapsule
 //  ÉCRAN SUCCÈS MARIAGE : formulaire de création post-paiement — design wedding
 // ============================================================================
 function EcranSuccesMariage({ creerCapsule, allerVers, capsuleWebhookId, setCapsules }) {
-  const [nom, setNom]         = useState("");
-  const [date, setDate]       = useState("");
-  const [enCours, setEnCours] = useState(false);
+  const [nom, setNom]                     = useState("");
+  const [date, setDate]                   = useState("");
+  const [couverture, setCouverture]       = useState(null);
+  const [preview, setPreview]             = useState(null);
+  const [srcRecadrageCouv, setSrcRecadrageCouv] = useState(null);
+  const [enCours, setEnCours]             = useState(false);
 
   const peutCreer = nom.trim().length > 0;
+
+  function onPhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const r = new FileReader();
+    r.onload = ev => setSrcRecadrageCouv(ev.target.result);
+    r.readAsDataURL(file);
+  }
 
   async function validerCreation() {
     setEnCours(true);
     try {
       if (capsuleWebhookId) {
-        // Met à jour la capsule déjà créée par le webhook — évite le doublon
+        const couvertureUrl = couverture
+          ? await uploaderFichier("couvertures", couverture, capsuleWebhookId)
+          : null;
         await supabase.from("capsules").update({
-          nom: nom.trim(), date_ouverture: date || null,
+          nom: nom.trim(),
+          date_ouverture: date || null,
+          ...(couvertureUrl ? { couverture_url: couvertureUrl } : {}),
         }).eq("id", capsuleWebhookId);
         setCapsules(prev => prev.map(c =>
-          c.id === capsuleWebhookId ? { ...c, nom: nom.trim(), dateOuverture: date || null } : c
+          c.id === capsuleWebhookId
+            ? { ...c, nom: nom.trim(), dateOuverture: date || null, ...(couvertureUrl ? { couverture: couvertureUrl } : {}) }
+            : c
         ));
         allerVers("capsules");
       } else {
         await creerCapsule({ nom: nom.trim(), type: "mariage", dateOuverture: date || null,
-          couverture: null, formule: "mariage", ecranSucces: "qr_mariage" });
+          couverture: couverture || null, formule: "mariage", ecranSucces: "qr_mariage" });
       }
     } catch (e) {
       alert("Erreur : " + e.message);
@@ -5345,12 +5362,47 @@ function EcranSuccesMariage({ creerCapsule, allerVers, capsuleWebhookId, setCaps
         </div>
       </div>
 
+      {srcRecadrageCouv && (
+        <RecadreurCouverture
+          src={srcRecadrageCouv}
+          onValider={b64 => { setCouverture(b64); setPreview(b64); setSrcRecadrageCouv(null); }}
+          onAnnuler={() => setSrcRecadrageCouv(null)}
+        />
+      )}
+
       <label style={S.label}>Nom de la capsule</label>
       <input style={S.input} placeholder="Ex. Mariage de Sophie & Thomas…"
         value={nom} onChange={e => setNom(e.target.value)} />
 
       <label style={{ ...S.label, marginTop: 8 }}>Date d'ouverture</label>
       <SelecteurDate valeur={date} onChange={setDate} />
+
+      <label style={{ ...S.label, marginTop: 8 }}>Photo de couverture</label>
+      <label style={{ display: "block", cursor: "pointer", marginBottom: 12 }}>
+        <div style={{ height: 140, borderRadius: 16, overflow: "hidden", position: "relative",
+          background: preview
+            ? `url(${preview}) center/cover`
+            : "linear-gradient(135deg,#3D0C11 0%,#831843 45%,#BE185D 75%,#C9A84C 100%)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          border: "2px dashed rgba(201,168,76,0.5)" }}>
+          {!preview && (
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 36, marginBottom: 6 }}>💍</div>
+              <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 600,
+                background: "rgba(0,0,0,0.3)", padding: "5px 14px", borderRadius: 999 }}>
+                📷 Choisir une photo
+              </div>
+            </div>
+          )}
+          {preview && (
+            <div style={{ position: "absolute", bottom: 8, right: 8, background: "rgba(0,0,0,0.55)",
+              color: "#fff", fontSize: 12, fontWeight: 600, borderRadius: 8, padding: "4px 10px" }}>
+              📷 Changer
+            </div>
+          )}
+        </div>
+        <input type="file" accept="image/*" style={{ display: "none" }} onChange={onPhoto} />
+      </label>
 
       <button style={{ ...S.boutonPrincipal, ...(!peutCreer||enCours ? S.boutonDesactive : {}),
         background: peutCreer ? "linear-gradient(135deg,#3D0C11,#831843,#BE185D,#C9A84C)" : undefined }}
