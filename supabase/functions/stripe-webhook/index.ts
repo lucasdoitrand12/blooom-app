@@ -121,6 +121,19 @@ serve(async (req: Request) => {
             compte_vocaux:      0,
           });
 
+          // Ajoute le créateur comme participant pour que la capsule soit visible via RLS
+          const { data: profil } = await supabase.from("profiles")
+            .select("prenom, photo_url, couleur")
+            .eq("id", userId).single();
+          await supabase.from("participants").insert({
+            id:         crypto.randomUUID(),
+            capsule_id: capsuleId,
+            user_id:    userId,
+            prenom:     profil?.prenom     || "Moi",
+            photo_url:  profil?.photo_url  || null,
+            couleur:    profil?.couleur    || "#FF6B5E",
+          });
+
           // Met à jour l'achat avec l'ID de capsule créée
           await supabase.from("achats")
             .update({ capsule_id: capsuleId })
@@ -151,6 +164,19 @@ serve(async (req: Request) => {
             compte_photos:      0,
             compte_videos:      0,
             compte_vocaux:      0,
+          });
+
+          // Ajoute le créateur comme participant
+          const { data: profilNaissance } = await supabase.from("profiles")
+            .select("prenom, photo_url, couleur")
+            .eq("id", userId).single();
+          await supabase.from("participants").insert({
+            id:         crypto.randomUUID(),
+            capsule_id: capsuleId,
+            user_id:    userId,
+            prenom:     profilNaissance?.prenom     || "Moi",
+            photo_url:  profilNaissance?.photo_url  || null,
+            couleur:    profilNaissance?.couleur    || "#FF6B5E",
           });
 
           await supabase.from("packs_actifs").insert({

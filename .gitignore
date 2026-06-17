@@ -39,3 +39,5 @@ ios/Pods
 
 # Supabase secrets
 supabase/.env
+
+.vercel

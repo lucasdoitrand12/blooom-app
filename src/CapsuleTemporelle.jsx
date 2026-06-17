@@ -357,6 +357,7 @@ const TYPES_CONTRIBUTION = [
   { id: "dessin",           nom: "Un dessin",               icone: "🎨" },
   { id: "secret",           nom: "Un secret",               icone: "🤫" },
   { id: "pari",             nom: "Un pari",                 icone: "🎲" },
+  { id: "vote",             nom: "Un vote",                 icone: "🗳️" },
   { id: "une_du_jour",      nom: "La une du jour",          icone: "📰" },
   { id: "meteo",            nom: "La météo du jour",        icone: "🌤️" },
   { id: "chanson",          nom: "La chanson du moment",    icone: "🎵" },
@@ -3452,6 +3453,125 @@ function ParisPendants({ capsule, moi, voterPari }) {
   );
 }
 
+// ============================================================================
+//  VOTES EN ATTENTE — bandeau dans EcranDetail pour les souvenirs vote non encore votés
+// ============================================================================
+function VotesPendants({ capsule, moi, voterSouvenir }) {
+  const moisParticipant = capsule.participants.find(p => p.userId === moi?.id);
+  const estCreateur = moi?.id === capsule.createurId;
+  const [selectionPar, setSelectionPar] = React.useState({}); // contribId → option
+  const [envoi, setEnvoi] = React.useState(null);
+
+  const votes = capsule.contributions.filter(c => c.type === "vote");
+  if (votes.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 14 }}>
+      {votes.map(c => {
+        let donnees = { question: "", options: [], votes: {} };
+        try { if (c.question) donnees = JSON.parse(c.question); } catch {}
+        const votesMap  = donnees.votes || {};
+        const options   = donnees.options || [];
+        const nbVotes   = Object.keys(votesMap).length;
+        const nbTotal   = capsule.participants.length;
+        const monVote   = moisParticipant ? votesMap[moisParticipant.id] : null;
+        const aVote     = !!monVote;
+        const auteur    = capsule.participants.find(p => p.id === c.auteurId);
+        const selection = selectionPar[c.id];
+
+        // Créateur ayant déjà voté : juste le compteur
+        if (estCreateur && aVote) {
+          return (
+            <div key={c.id} style={{ background: "#fff", borderRadius: 20, padding: "14px 16px",
+              marginBottom: 10, boxShadow: "0 4px 14px rgba(46,34,48,0.07)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 20 }}>🗳️</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre, flex: 1 }}>
+                  {donnees.question}
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: COULEURS.doux, fontWeight: 600 }}>
+                {nbVotes}/{nbTotal} participant{nbTotal > 1 ? "s" : ""} {nbVotes > 1 ? "ont" : "a"} voté
+              </div>
+            </div>
+          );
+        }
+
+        // Participant ayant déjà voté
+        if (aVote) {
+          return (
+            <div key={c.id} style={{ background: "#fff", borderRadius: 20, padding: "14px 16px",
+              marginBottom: 10, boxShadow: "0 4px 14px rgba(46,34,48,0.07)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 20 }}>🗳️</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: COULEURS.encre, flex: 1 }}>
+                  {donnees.question}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: "#22c55e", fontWeight: 700 }}>
+                ✅ Vote enregistré · "{monVote}"
+              </div>
+            </div>
+          );
+        }
+
+        // Participant n'ayant pas encore voté
+        if (!moisParticipant) return null;
+
+        async function voter() {
+          if (!selection || envoi) return;
+          setEnvoi(c.id);
+          await voterSouvenir(capsule.id, c.id, moisParticipant.id, selection);
+          setEnvoi(null);
+        }
+
+        return (
+          <div key={c.id} style={{ background: "#fff", borderRadius: 20, padding: "16px 14px",
+            marginBottom: 10, boxShadow: "0 4px 14px rgba(46,34,48,0.07)",
+            border: "1.5px solid #e8e0ec" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <Avatar membre={auteur} taille={26} />
+              <span style={{ fontSize: 11, color: COULEURS.doux, fontWeight: 600 }}>{auteur?.prenom}</span>
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 15, color: COULEURS.encre, lineHeight: 1.5,
+              marginBottom: 12 }}>
+              🗳️ {donnees.question}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+              {options.map(opt => (
+                <button key={opt} onClick={() => setSelectionPar(prev => ({ ...prev, [c.id]: opt }))}
+                  style={{ background: selection === opt ? DEGRADE : "#f5f0f8",
+                    color: selection === opt ? "#fff" : COULEURS.encre,
+                    border: selection === opt ? "none" : `1.5px solid ${COULEURS.bordure}`,
+                    borderRadius: 14, padding: "11px 14px", fontWeight: 700, fontSize: 14,
+                    cursor: "pointer", textAlign: "left",
+                    boxShadow: selection === opt ? "0 4px 14px rgba(255,92,157,0.35)" : "none",
+                    transition: "all 0.15s ease",
+                    fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  {opt}
+                </button>
+              ))}
+            </div>
+            <button
+              disabled={!selection || !!envoi}
+              onClick={voter}
+              style={{ width: "100%", background: selection ? DEGRADE : "#e5dde8",
+                color: "#fff", border: "none", borderRadius: 14, padding: 13,
+                fontWeight: 700, fontSize: 14, cursor: selection ? "pointer" : "default",
+                opacity: envoi === c.id ? 0.6 : 1,
+                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              {envoi === c.id ? "Enregistrement…" : "🔒 Valider mon vote"}
+            </button>
+            <p style={{ fontSize: 11, color: COULEURS.doux, textAlign: "center", margin: "8px 0 0" }}>
+              Votre vote est définitif et ne peut pas être modifié.
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Animation du verdict d'un pari à l'ouverture de la capsule.
 // Phase 0 : énoncé + bouton. Phase 1 : dé qui grossit 7s puis explose. Phase 2 : résultats.
 function AnimPari({ contrib, capsule, moisParticipant, voterPari }) {
@@ -3669,7 +3789,7 @@ function AnimPari({ contrib, capsule, moisParticipant, voterPari }) {
 // Poids estimé en Mo par type de contribution (les médias sont des URLs, on ne peut pas peser exactement)
 const POIDS_MO = {
   photo: 3, video: 30, vocal: 1, dessin: 0.5, document: 2,
-  message: 0.01, secret: 0.01, pari: 0.01, chanson: 0.01, meteo: 0.01, une_du_jour: 0.01,
+  message: 0.01, secret: 0.01, pari: 0.01, vote: 0.01, chanson: 0.01, meteo: 0.01, une_du_jour: 0.01,
 };
 
 // Carte "Code Papy" — affiché dans EcranDetail pour les créateurs de capsules Papy.
@@ -3841,7 +3961,7 @@ function VoirEnsembleButton({ capsule, moi, insererNotification }) {
   );
 }
 
-function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, modifierNom, modifierCouverture, editerParticipant, voterPari, onPaywall, insererNotification, supprimerCapsule, marierParticipant, capsulesLiees }) {
+function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, modifierNom, modifierCouverture, editerParticipant, voterPari, voterSouvenir, onPaywall, insererNotification, supprimerCapsule, marierParticipant, capsulesLiees }) {
   const [editionDate, setEditionDate] = useState(false);
   const [nouvelleDate, setNouvelleDate] = useState(capsule?.dateOuverture || "");
   const [editionNom, setEditionNom] = useState(false);
@@ -4231,6 +4351,7 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
 
       {/* Paris en attente de vote — visibles avant l'ouverture */}
       <ParisPendants capsule={capsule} moi={moi} voterPari={voterPari} />
+      <VotesPendants capsule={capsule} moi={moi} voterSouvenir={voterSouvenir} />
 
       {!capsule.ouverte && (
         <>
@@ -5022,7 +5143,7 @@ function CanvasDessin({ onSave }) {
 //  ÉCRAN SUCCÈS PACK INOUBLIABLE — affiché après l'achat d'un pack occasion
 //  Formulaire post-paiement : nommer + typer + dater la capsule payante.
 // ============================================================================
-function EcranSuccesPack({ creerCapsule, allerVers }) {
+function EcranSuccesPack({ creerCapsule, allerVers, capsuleWebhookId, setCapsules }) {
   const [nom, setNom]         = useState("");
   const [type, setType]       = useState(null);
   const [date, setDate]       = useState("");
@@ -5033,8 +5154,18 @@ function EcranSuccesPack({ creerCapsule, allerVers }) {
   async function validerCreation() {
     setEnCours(true);
     try {
-      await creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture: null, formule: "occasion" });
-      // creerCapsule navigue automatiquement vers "detail"
+      if (capsuleWebhookId) {
+        // Met à jour la capsule déjà créée par le webhook — évite le doublon
+        await supabase.from("capsules").update({
+          nom: nom.trim(), type, date_ouverture: date || null,
+        }).eq("id", capsuleWebhookId);
+        setCapsules(prev => prev.map(c =>
+          c.id === capsuleWebhookId ? { ...c, nom: nom.trim(), type, dateOuverture: date || null } : c
+        ));
+        allerVers("capsules");
+      } else {
+        await creerCapsule({ nom: nom.trim(), type, dateOuverture: date || null, couverture: null, formule: "occasion", ecranSucces: "capsules" });
+      }
     } catch (e) {
       alert("Erreur : " + e.message);
       setEnCours(false);
@@ -5112,7 +5243,7 @@ function EcranSuccesPack({ creerCapsule, allerVers }) {
 // ============================================================================
 //  ÉCRAN SUCCÈS MARIAGE : formulaire de création post-paiement — design wedding
 // ============================================================================
-function EcranSuccesMariage({ creerCapsule, allerVers }) {
+function EcranSuccesMariage({ creerCapsule, allerVers, capsuleWebhookId, setCapsules }) {
   const [nom, setNom]         = useState("");
   const [date, setDate]       = useState("");
   const [enCours, setEnCours] = useState(false);
@@ -5122,8 +5253,19 @@ function EcranSuccesMariage({ creerCapsule, allerVers }) {
   async function validerCreation() {
     setEnCours(true);
     try {
-      await creerCapsule({ nom: nom.trim(), type: "mariage", dateOuverture: date || null,
-        couverture: null, formule: "mariage", ecranSucces: "qr_mariage" });
+      if (capsuleWebhookId) {
+        // Met à jour la capsule déjà créée par le webhook — évite le doublon
+        await supabase.from("capsules").update({
+          nom: nom.trim(), date_ouverture: date || null,
+        }).eq("id", capsuleWebhookId);
+        setCapsules(prev => prev.map(c =>
+          c.id === capsuleWebhookId ? { ...c, nom: nom.trim(), dateOuverture: date || null } : c
+        ));
+        allerVers("capsules");
+      } else {
+        await creerCapsule({ nom: nom.trim(), type: "mariage", dateOuverture: date || null,
+          couverture: null, formule: "mariage", ecranSucces: "qr_mariage" });
+      }
     } catch (e) {
       alert("Erreur : " + e.message);
       setEnCours(false);
@@ -5499,11 +5641,21 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
   const [typeContrib, setTypeContrib] = useState(null);
   const [voteDepositaire, setVoteDepositaire] = useState(null); // "oui" | "non" — vote du déposant sur son propre pari
+  // États pour le type "vote"
+  const [voteQuestion, setVoteQuestion]     = useState("");
+  const [voteOptions, setVoteOptions]       = useState(["", ""]);
+  const [monVoteCreateur, setMonVoteCreateur] = useState(null);
 
-  // Un pari est personnel : on revient à soi seul si on bascule sur ce type.
+  // Pari et vote sont personnels : on revient à soi seul si on bascule sur ces types.
   React.useEffect(() => {
-    if (typeContrib === "pari") { setAuteurIds(moisParticipant ? [moisParticipant.id] : []); setAjoutOuvert(false); }
-  }, [typeContrib]);
+    if (typeContrib === "pari" || typeContrib === "vote") {
+      setAuteurIds(moisParticipant ? [moisParticipant.id] : []);
+      setAjoutOuvert(false);
+    }
+    if (typeContrib === "vote") {
+      setVoteQuestion(""); setVoteOptions(["", ""]); setMonVoteCreateur(null);
+    }
+  }, [typeContrib]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [texte, setTexte] = useState("");
   const [media, setMedia] = useState(null);         // File object (pour l'upload)
@@ -5777,6 +5929,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
     setRechercheEnCours(false);
   }
 
+  const optionsValides = voteOptions.map(o => o.trim()).filter(Boolean);
   const peutEnvoyer =
     (typeContrib === "message"          && texte.trim()) ||
     ((typeContrib === "photo" || typeContrib === "video") && media) ||
@@ -5784,6 +5937,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
     (typeContrib === "dessin"           && dessinData) ||
     (typeContrib === "secret"           && texte.trim()) ||
     (typeContrib === "pari"             && texte.trim() && voteDepositaire !== null) ||
+    (typeContrib === "vote"             && voteQuestion.trim() && optionsValides.length >= 2 && monVoteCreateur !== null) ||
     (typeContrib === "une_du_jour"      && uneData) ||
     (typeContrib === "meteo"            && meteoData) ||
     (typeContrib === "chanson"          && chansonSelectionnee) ||
@@ -5792,10 +5946,11 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
   async function envoyer() {
     // La question field sert à stocker des données structurées JSON pour certains types.
     const questionField =
-      typeContrib === "une_du_jour"      ? JSON.stringify(uneData)
-    : typeContrib === "meteo"            ? JSON.stringify({ ...meteoData, commentaire: meteoCommentaire })
-    : typeContrib === "chanson"          ? JSON.stringify({ ...chansonSelectionnee, paroles: paroles && paroles !== "__introuvable__" ? paroles : null })
-    : typeContrib === "pari"             ? JSON.stringify({ votes: moisParticipant && voteDepositaire ? { [moisParticipant.id]: { vote: voteDepositaire, commentaire: "", ts: new Date().toISOString() } } : {} })
+      typeContrib === "une_du_jour" ? JSON.stringify(uneData)
+    : typeContrib === "meteo"       ? JSON.stringify({ ...meteoData, commentaire: meteoCommentaire })
+    : typeContrib === "chanson"     ? JSON.stringify({ ...chansonSelectionnee, paroles: paroles && paroles !== "__introuvable__" ? paroles : null })
+    : typeContrib === "pari"        ? JSON.stringify({ votes: moisParticipant && voteDepositaire ? { [moisParticipant.id]: { vote: voteDepositaire, commentaire: "", ts: new Date().toISOString() } } : {} })
+    : typeContrib === "vote"        ? JSON.stringify({ question: voteQuestion.trim(), options: optionsValides, votes: moisParticipant && monVoteCreateur ? { [moisParticipant.id]: monVoteCreateur } : {} })
     : null;
 
     // Pour un document, on utilise le titre saisi OU le nom original du fichier
@@ -5803,19 +5958,23 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
       ? (texte.trim() || pdfFichier?.name || "Document PDF")
       : typeContrib === "dessin"
       ? commentaireDessin.trim()
+      : typeContrib === "vote"
+      ? voteQuestion.trim()
       : texte.trim();
 
-    await ajouterContribution(capsule.id, {
-      id: genererId(), auteurId: auteurIds[0], type: typeContrib, texte: texteAEnvoyer,
-      question: questionField,
-      media: (typeContrib === "photo" || typeContrib === "video") ? media
-           : typeContrib === "vocal"    ? audioBlob
-           : typeContrib === "dessin"   ? dessinData
-           : typeContrib === "document" ? pdfFichier
-           : null,
-      filtre, ambiance: typeContrib === "message" ? ambiance : null,
-      date: datePrise || new Date().toISOString(), reactions: {},
-    });
+    try {
+      await ajouterContribution(capsule.id, {
+        id: genererId(), auteurId: auteurIds[0], type: typeContrib, texte: texteAEnvoyer,
+        question: questionField,
+        media: (typeContrib === "photo" || typeContrib === "video") ? media
+             : typeContrib === "vocal"    ? audioBlob
+             : typeContrib === "dessin"   ? dessinData
+             : typeContrib === "document" ? pdfFichier
+             : null,
+        filtre, ambiance: typeContrib === "message" ? ambiance : null,
+        date: datePrise || new Date().toISOString(), reactions: {},
+      });
+    } catch {}
     allerVers("detail", capsule.id);
   }
   const auteur = capsule.participants.find((p) => p.id === auteurIds[0]);
@@ -5847,8 +6006,8 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
             );
           })}
 
-          {/* Bouton + masqué pour les paris */}
-          {typeContrib !== "pari" && (
+          {/* Bouton + masqué pour les paris et votes (auteur unique) */}
+          {typeContrib !== "pari" && typeContrib !== "vote" && (
             <button onClick={() => setAjoutOuvert(v => !v)}
               style={{ width: 36, height: 36, borderRadius: "50%", background: ajoutOuvert ? COULEURS.encre : "linear-gradient(135deg,#f0eaf2,#e8e0ec)", border: "none", cursor: "pointer", fontSize: 18, color: ajoutOuvert ? "#fff" : COULEURS.doux, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               +
@@ -5857,7 +6016,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
         </div>
 
         {/* Panneau de sélection multiple par cases à cocher */}
-        {ajoutOuvert && typeContrib !== "pari" && (
+        {ajoutOuvert && typeContrib !== "pari" && typeContrib !== "vote" && (
           <div style={{ marginTop: 10, borderTop: `1px solid ${COULEURS.bordure}`, paddingTop: 10 }}>
             {capsule.participants.filter(p => p.id !== moisParticipant?.id).length === 0
               ? <div style={{ fontSize: 13, color: COULEURS.doux, padding: "4px 0" }}>Vous êtes le seul membre de cette capsule.</div>
@@ -6088,6 +6247,78 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
         </>
       )}
 
+      {/* Vote — question + 2 à 6 options + vote immédiat du créateur */}
+      {typeContrib === "vote" && (
+        <>
+          <label style={S.label}>Votre question</label>
+          <textarea style={S.zoneTexte} autoFocus
+            placeholder="Ex. Qui sera le vainqueur du tournoi ce weekend ?"
+            value={voteQuestion} onChange={e => setVoteQuestion(e.target.value)} />
+
+          <label style={{ ...S.label, marginTop: 14 }}>
+            Options de réponse <span style={{ color: COULEURS.doux, fontWeight: 400 }}>({optionsValides.length}/6 min. 2)</span>
+          </label>
+          {voteOptions.map((opt, i) => (
+            <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center" }}>
+              <input
+                style={{ ...S.input, flex: 1, margin: 0 }}
+                placeholder={`Option ${i + 1}${i < 2 ? " (obligatoire)" : ""}`}
+                value={opt}
+                onChange={e => {
+                  const next = [...voteOptions];
+                  next[i] = e.target.value;
+                  setVoteOptions(next);
+                  if (monVoteCreateur && !next.map(o => o.trim()).filter(Boolean).includes(monVoteCreateur)) {
+                    setMonVoteCreateur(null);
+                  }
+                }}
+              />
+              {i >= 2 && (
+                <button onClick={() => {
+                  const next = voteOptions.filter((_, j) => j !== i);
+                  setVoteOptions(next);
+                  if (monVoteCreateur && !next.map(o => o.trim()).filter(Boolean).includes(monVoteCreateur)) {
+                    setMonVoteCreateur(null);
+                  }
+                }}
+                  style={{ background: "none", border: `1px solid ${COULEURS.bordure}`, borderRadius: 10,
+                    width: 32, height: 32, cursor: "pointer", color: COULEURS.doux, fontSize: 16,
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+          {voteOptions.length < 6 && (
+            <button onClick={() => setVoteOptions(prev => [...prev, ""])}
+              style={{ ...S.boutonSecondaire, marginTop: 0, marginBottom: 8, padding: "9px 0" }}>
+              + Ajouter une option
+            </button>
+          )}
+
+          {optionsValides.length >= 2 && (
+            <>
+              <label style={{ ...S.label, marginTop: 14 }}>Votre propre vote</label>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 4 }}>
+                {optionsValides.map((opt, i) => (
+                  <button key={opt} onClick={() => setMonVoteCreateur(v => v === opt ? null : opt)}
+                    style={{ background: monVoteCreateur === opt ? DEGRADE : "#f5f0f8",
+                      color: monVoteCreateur === opt ? "#fff" : COULEURS.encre,
+                      border: monVoteCreateur === opt ? "none" : `1.5px solid ${COULEURS.bordure}`,
+                      borderRadius: 14, padding: "11px 14px", fontWeight: 700, fontSize: 14,
+                      cursor: "pointer", textAlign: "left",
+                      boxShadow: monVoteCreateur === opt ? "0 4px 14px rgba(255,92,157,0.35)" : "none",
+                      transition: "all 0.15s ease",
+                      fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          <p style={S.aide}>🗳️ Votre vote est immédiatement verrouillé. Les autres participants recevront une notification pour voter. Les résultats ne sont révélés qu'à l'ouverture de la capsule.</p>
+        </>
+      )}
 
       {/* Une du jour — titre récupéré automatiquement depuis Le Monde (RSS → rss2json) */}
       {typeContrib === "une_du_jour" && (
@@ -6276,6 +6507,15 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
           {/* Preuve sociale discrète : renforce la motivation juste avant de sceller,
               sans alourdir visuellement l'acte de dépôt */}
           {peutEnvoyer && <LigneStatDiscrète />}
+          {typeContrib === "vote" && !peutEnvoyer && (
+            <p style={{ ...S.aide, color: "#FF5C5C", marginBottom: 6 }}>
+              {!voteQuestion.trim()
+                ? "⚠️ Écrivez d'abord votre question."
+                : optionsValides.length < 2
+                ? "⚠️ Ajoutez au moins 2 options."
+                : "⚠️ Sélectionnez votre propre réponse avant de sceller."}
+            </p>
+          )}
           <button style={{ ...S.boutonPrincipal, ...(peutEnvoyer ? {} : S.boutonDesactive) }} disabled={!peutEnvoyer} onClick={envoyer}>
             🔒 Sceller ce souvenir
           </button>
@@ -6855,9 +7095,203 @@ function AnimRevealSouvenir({ type, phase, onSkip }) {
 }
 
 // ============================================================================
+//  ANIMATION VOTE : révélation des résultats à l'ouverture de la capsule.
+//  Phase 0 : question + bouton. Phase 1 : urne qui grossit 6s puis explose.
+//  Phase 2 : barres par option + liste nominative.
+// ============================================================================
+function AnimVote({ contrib, capsule, moisParticipant, voterSouvenir }) {
+  const donnees = React.useMemo(() => {
+    try { return contrib.question ? JSON.parse(contrib.question) : { question: "", options: [], votes: {} }; }
+    catch { return { question: "", options: [], votes: {} }; }
+  }, [contrib.question]);
+
+  const votes   = donnees.votes || {};
+  const options = donnees.options || [];
+  const total   = Object.keys(votes).length;
+  const monVote = moisParticipant ? votes[moisParticipant.id] : null;
+
+  const [phase, setPhase]     = React.useState(() => total > 0 && total >= capsule.participants.length ? 2 : 0);
+  const [barres, setBarres]   = React.useState({});
+  const [envoi, setEnvoi]     = React.useState(false);
+
+  // Urne animation (phase 1) — même mécanique que le dé du pari
+  const [urneScale, setUrneScale]     = React.useState(0.05);
+  const [urneOpacity, setUrneOpacity] = React.useState(0);
+  const [urneRot, setUrneRot]         = React.useState(0);
+  const rafRef   = React.useRef(null);
+  const startRef = React.useRef(null);
+  const DUREE    = 6000;
+
+  React.useEffect(() => {
+    if (phase !== 2 || !options.length) return;
+    const pcts = {};
+    options.forEach(opt => {
+      const n = Object.values(votes).filter(v => v === opt).length;
+      pcts[opt] = total > 0 ? Math.round(n / total * 100) : 0;
+    });
+    const t = setTimeout(() => setBarres(pcts), 120);
+    return () => clearTimeout(t);
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  React.useEffect(() => {
+    if (phase !== 1) return;
+    startRef.current = performance.now();
+    function tick(now) {
+      const elapsed = now - startRef.current;
+      const t = Math.min(1, elapsed / DUREE);
+      let s;
+      if (t < 0.85) { s = 0.05 + Math.pow(t / 0.85, 2) * 0.95; }
+      else { const boom = (t - 0.85) / 0.15; s = 1 + boom * boom * 9; }
+      const wobble = t < 0.84 ? Math.sin(elapsed * 0.007) * 18 * Math.min(1, t * 5) : 0;
+      let op;
+      if (t < 0.05) op = t / 0.05;
+      else if (t < 0.86) op = 1;
+      else op = Math.max(0, 1 - (t - 0.86) / 0.14);
+      setUrneScale(s); setUrneOpacity(op); setUrneRot(wobble);
+      if (t < 1) { rafRef.current = requestAnimationFrame(tick); }
+      else { setPhase(2); }
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function voterMaintenant(option) {
+    if (!moisParticipant || envoi || monVote) return;
+    setEnvoi(true);
+    await voterSouvenir(capsule.id, contrib.id, moisParticipant.id, option);
+    setEnvoi(false);
+  }
+
+  // Couleurs distinctes pour les options
+  const COULEURS_OPT = ["#6366f1","#f59e0b","#10b981","#ef4444","#8b5cf6","#06b6d4"];
+
+  return (
+    <div>
+      {/* Question — toujours visible */}
+      <div style={{ background: "linear-gradient(135deg,rgba(99,102,241,0.12),rgba(139,92,246,0.12))",
+        borderRadius: 20, padding: "20px 16px", marginBottom: 16, textAlign: "center" }}>
+        <div style={{ fontSize: 38, marginBottom: 10 }}>🗳️</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: COULEURS.encre, lineHeight: 1.6, fontStyle: "italic" }}>
+          « {donnees.question} »
+        </div>
+      </div>
+
+      {/* Phase 0 : bouton de dévoilement */}
+      {phase === 0 && (
+        <div style={{ textAlign: "center", paddingBottom: 8 }}>
+          <button onClick={() => setPhase(1)}
+            style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff",
+              border: "none", borderRadius: 18, padding: "15px 32px", fontSize: 16, fontWeight: 700,
+              cursor: "pointer", boxShadow: "0 8px 24px rgba(99,102,241,0.45)",
+              fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: 0.3 }}>
+            🗳️ Dévoiler les résultats
+          </button>
+        </div>
+      )}
+
+      {/* Phase 1 : urne qui grossit */}
+      {phase === 1 && (
+        <div style={{ textAlign: "center", minHeight: 170, display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", overflow: "hidden", padding: "10px 0" }}>
+          <div style={{ fontSize: 64, display: "inline-block",
+            transform: `scale(${urneScale}) rotate(${urneRot}deg)`,
+            opacity: urneOpacity, transformOrigin: "center center",
+            lineHeight: 1, willChange: "transform, opacity" }}>
+            🗳️
+          </div>
+          <div style={{ marginTop: 28, fontSize: 13, fontWeight: 700, color: COULEURS.doux,
+            letterSpacing: 2, textTransform: "uppercase", opacity: Math.min(1, urneOpacity * 4) }}>
+            Dépouillement en cours…
+          </div>
+        </div>
+      )}
+
+      {/* Phase 2 : résultats */}
+      {phase === 2 && (
+        <div>
+          {/* Barres par option */}
+          {options.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 18 }}>
+              {options.map((opt, i) => {
+                const pct = barres[opt] ?? 0;
+                const n   = Object.values(votes).filter(v => v === opt).length;
+                const col = COULEURS_OPT[i % COULEURS_OPT.length];
+                return (
+                  <div key={opt}>
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      fontSize: 12, fontWeight: 700, color: col, marginBottom: 4 }}>
+                      <span>{opt}</span>
+                      <span>{n} vote{n > 1 ? "s" : ""} · {pct}%</span>
+                    </div>
+                    <div style={{ height: 14, background: col + "22", borderRadius: 7, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${pct}%`, background: col,
+                        borderRadius: 7, transition: "width 1.2s cubic-bezier(0.4,0,0.2,1)" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Liste nominative */}
+          <div style={{ marginBottom: 14 }}>
+            {capsule.participants.map(p => {
+              const v = votes[p.id];
+              const optIdx = v ? options.indexOf(v) : -1;
+              const col = optIdx >= 0 ? COULEURS_OPT[optIdx % COULEURS_OPT.length] : COULEURS.doux;
+              return (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 10,
+                  marginBottom: 8, background: "#fff", borderRadius: 14,
+                  padding: "10px 12px", boxShadow: "0 2px 8px rgba(46,34,48,0.06)" }}>
+                  <Avatar membre={p} taille={30} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 13, color: COULEURS.encre }}>{p.prenom}</div>
+                  </div>
+                  <span style={{ fontWeight: 800, fontSize: 12, color: col,
+                    background: col + "18", borderRadius: 20, padding: "4px 10px",
+                    maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {v || "N'a pas voté"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Vote tardif si la capsule est ouverte mais le participant n'a pas encore voté */}
+          {moisParticipant && !monVote && (
+            <div style={{ background: "#f5f0f8", borderRadius: 16, padding: "14px 14px",
+              border: `1.5px solid ${COULEURS.bordure}`, marginTop: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: COULEURS.encre, marginBottom: 10 }}>
+                Vous n'avez pas encore voté — votez maintenant
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {options.map((opt, i) => {
+                  const col = COULEURS_OPT[i % COULEURS_OPT.length];
+                  return (
+                    <button key={opt} disabled={envoi}
+                      onClick={() => voterMaintenant(opt)}
+                      style={{ background: col, color: "#fff", border: "none", borderRadius: 12,
+                        padding: "10px 14px", fontWeight: 700, fontSize: 13, cursor: "pointer",
+                        opacity: envoi ? 0.6 : 1, textAlign: "left",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {total === 0 && <div style={{ textAlign: "center", color: COULEURS.doux, fontSize: 13, marginBottom: 14 }}>Aucun vote enregistré.</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================================
 //  ÉCRAN OUVERTURE : révélation un par un + page finale (album papier).
 // ============================================================================
-function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterFavori, premiereFois = false }) {
+function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterSouvenir, voterFavori, premiereFois = false }) {
   const CLE_INDEX = `blooom_ouverture_${capsule?.id}`;
   const [index, setIndexRaw] = useState(() => {
     try {
@@ -7101,7 +7535,7 @@ function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterFavor
   const monReaction = moisParticipant ? courant.reactionsDétail?.[moisParticipant.id] : null;
   const monReactionObj = monReaction ? REACTIONS.find(r => r.id === monReaction) : null;
 
-  const afficherReactions = courant.type !== "pari";
+  const afficherReactions = !["pari", "vote"].includes(courant.type);
 
   return (
     <>
@@ -7177,7 +7611,7 @@ function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterFavor
         {/* Texte standard (message + question guidée) avec ambiance */}
         {courant.texte && courant.type === "message" && ambiance
           ? <div style={{ ...S.souvenirMessageAmbiance, background: ambiance.fond, color: ambiance.texte }}>{courant.texte}</div>
-          : courant.texte && !["secret","pari"].includes(courant.type) && <div style={S.souvenirTexte}>{courant.texte}</div>
+          : courant.texte && !["secret","pari","vote"].includes(courant.type) && <div style={S.souvenirTexte}>{courant.texte}</div>
         }
 
         {/* Secret — masqué par défaut, révélé au clic individuel */}
@@ -7199,7 +7633,11 @@ function EcranOuverture({ capsule, moi, allerVers, reagir, voterPari, voterFavor
             moisParticipant={moisParticipant} voterPari={voterPari} />
         )}
 
-
+        {/* Vote — révélation des résultats avec animation urne */}
+        {courant.type === "vote" && (
+          <AnimVote key={courant.id} contrib={courant} capsule={capsule}
+            moisParticipant={moisParticipant} voterSouvenir={voterSouvenir} />
+        )}
 
         {/* Une du jour — titre récupéré au moment du dépôt */}
         {courant.type === "une_du_jour" && donnees && (
@@ -10417,10 +10855,12 @@ export default function App() {
   const [maintenance, setMaintenance] = useState(false);
   const [maintenanceMsg, setMaintenanceMsg] = useState("L'application est en maintenance. Revenez bientôt !");
   const [packSucces, setPackSucces] = useState(null);
+  const [capsuleWebhookId, setCapsuleWebhookId] = useState(null);
   const [gami, setGami] = useState(null);
   const [gamiUnlock, setGamiUnlock] = useState(null);
   const gamiInitRef = React.useRef(false);
   const gamiPrevRef = React.useRef(null);
+  const premierChargementRef = React.useRef(true);
 
   // Déclenche les toasts de badge/niveau quand gami change (résout la perte de badges en cas d'appels rapides)
   useEffect(() => {
@@ -10519,8 +10959,29 @@ export default function App() {
     } else if (packSucces === "papy") {
       incrementerGami({ points: 3 });
     }
-    allerVers(packSucces === "mariage" ? "succes_mariage" : packSucces === "papy" ? "succes_papy" : "succes_pack");
-    setPackSucces(null);
+    // Pour les packs occasion/mariage, récupère l'ID de la capsule créée par le webhook
+    // pour éviter qu'EcranSuccesPack en crée une deuxième (doublon)
+    if (packSucces === "occasion" || packSucces === "mariage") {
+      const typeAchat = packSucces === "mariage" ? "pack_mariage" : "pack_occasion";
+      supabase
+        .from("achats")
+        .select("capsule_id")
+        .eq("user_id", session.user.id)
+        .eq("type", typeAchat)
+        .eq("statut", "complete")
+        .not("capsule_id", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          setCapsuleWebhookId(data?.capsule_id || null);
+          allerVers(packSucces === "mariage" ? "succes_mariage" : "succes_pack");
+          setPackSucces(null);
+        });
+    } else {
+      allerVers(packSucces === "papy" ? "succes_papy" : "succes_pack");
+      setPackSucces(null);
+    }
   }, [packSucces, chargement, session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Gère les Universal Links / App Links (lien d'invitation ouvert depuis le téléphone)
@@ -10598,7 +11059,8 @@ export default function App() {
   }, [capsules, session]);
 
   async function chargerDonnees() {
-    setChargement(true);
+    const estPremier = premierChargementRef.current;
+    if (estPremier) setChargement(true);
     const [{ data: profil }, { data: capsulesDB }, { data: gamiDB }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle(),
       supabase.from("capsules")
@@ -10631,9 +11093,19 @@ export default function App() {
           if (p.userId === session.user.id) p.photo = profil.photo_url || null;
         }));
       }
-      setCapsules(liste);
+      // Fusionne avec l'état local pour ne pas perdre les capsules créées optimistiquement
+      // (creerCapsule les ajoute localement avant que Realtime ne confirme).
+      setCapsules(prev => {
+        if (estPremier || !prev.length) return liste;
+        const ids = new Set(liste.map(c => c.id));
+        const localOnly = prev.filter(c => !ids.has(c.id));
+        return localOnly.length ? [...liste, ...localOnly] : liste;
+      });
     }
-    setChargement(false);
+    if (estPremier) {
+      setChargement(false);
+      premierChargementRef.current = false;
+    }
     // Charge les notifications après que les capsules sont disponibles
     if (capsulesDB) chargerNotifsPour(capsulesDB.map(normaliserCapsule));
   }
@@ -11010,6 +11482,23 @@ export default function App() {
         }));
       }
       incrementerGami({ points: 1, souvenirs_deposes: 1 });
+      // Vote : insérer dans souvenirs_votes + notifier tous les autres participants
+      if (contribution.type === "vote" && capsule) {
+        let parsedVote = { question: "", options: [] };
+        try { if (contribution.question) parsedVote = JSON.parse(contribution.question); } catch {}
+        await supabase.from("souvenirs_votes").insert({
+          contribution_id: data.id,
+          capsule_id: capsuleId,
+          question: parsedVote.question,
+          options: parsedVote.options,
+        }).catch(() => {});
+        for (const p of capsule.participants.filter(p => p.userId !== session?.user?.id)) {
+          insererNotification(p.id, capsuleId,
+            `🗳️ Un vote a été créé dans « ${capsule.nom} » — donnez votre avis !`,
+            "detail"
+          );
+        }
+      }
       // Jalons : notifie tous les participants à 10, 20, 50 contributions
       const nbApres = (capsule?.contributions.length || 0) + 1;
       if ([10, 20, 50].includes(nbApres) && capsule) {
@@ -11055,6 +11544,22 @@ export default function App() {
     }));
   }
 
+
+  async function voterSouvenir(capsuleId, contribId, participantId, option) {
+    const capsule = capsules.find(c => c.id === capsuleId);
+    const contrib = capsule?.contributions.find(ct => ct.id === contribId);
+    let donnees = { question: "", options: [], votes: {} };
+    try { if (contrib?.question) donnees = JSON.parse(contrib.question); } catch {}
+    if (donnees.votes?.[participantId]) return; // déjà voté — immuable
+    const nouvelles = { ...donnees, votes: { ...donnees.votes, [participantId]: option } };
+    await supabase.from("contributions").update({ question: JSON.stringify(nouvelles) }).eq("id", contribId);
+    await supabase.from("votes_reponses").insert({ souvenir_id: contribId, participant_id: participantId, option_choisie: option }).catch(() => {});
+    setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
+      ...c, contributions: c.contributions.map(ct =>
+        ct.id !== contribId ? ct : { ...ct, question: JSON.stringify(nouvelles) }
+      ),
+    }));
+  }
 
   async function reagir(capsuleId, contribId, reactionId) {
     const capsule = capsules.find(c => c.id === capsuleId);
@@ -11148,7 +11653,7 @@ export default function App() {
   if (!moi) return <CadreTelephone vars={vars}><EcranBienvenue creerMoi={creerMoi} /></CadreTelephone>;
 
   // La barre de navigation n'apparaît que sur les écrans principaux
-  const afficherOnglets = ["capsules", "creer", "papy", "profil"].includes(ecran);
+  const afficherOnglets = ["capsules", "creer", "papy", "profil", "succes_pack", "succes_mariage", "succes_papy"].includes(ecran);
   const hasPapy = capsules.some(c =>
     c.formule === "papy" &&
     (c.createurId === moi?.id || c.participants.some(p => p.userId === moi?.id))
@@ -11180,7 +11685,7 @@ export default function App() {
       {ecran === "detail" && (
         <EcranDetail capsule={capsuleActive} moi={moi} allerVers={allerVers} ouvrirCapsule={ouvrirCapsule}
           modifierDate={modifierDate} modifierNom={modifierNom} modifierCouverture={modifierCouverture}
-          editerParticipant={editerParticipant} voterPari={voterPari} onPaywall={setPaywallType}
+          editerParticipant={editerParticipant} voterPari={voterPari} voterSouvenir={voterSouvenir} onPaywall={setPaywallType}
           insererNotification={insererNotification} supprimerCapsule={supprimerCapsule}
           marierParticipant={marierParticipant}
           capsulesLiees={capsuleActive?.formule === "papy"
@@ -11196,10 +11701,10 @@ export default function App() {
         <EcranUpgradeMedia capsule={capsuleActive} allerVers={allerVers} acheterUpgradeMedia={acheterUpgradeMedia} ecranPrecedent={ecranPrecedent} />
       )}
       {ecran === "succes_pack" && (
-        <EcranSuccesPack creerCapsule={creerCapsule} allerVers={allerVers} />
+        <EcranSuccesPack creerCapsule={creerCapsule} allerVers={allerVers} capsuleWebhookId={capsuleWebhookId} setCapsules={setCapsules} />
       )}
       {ecran === "succes_mariage" && (
-        <EcranSuccesMariage creerCapsule={creerCapsule} allerVers={allerVers} />
+        <EcranSuccesMariage creerCapsule={creerCapsule} allerVers={allerVers} capsuleWebhookId={capsuleWebhookId} setCapsules={setCapsules} />
       )}
       {ecran === "succes_papy" && (
         <EcranSuccesPapy creerCapsule={creerCapsule} allerVers={allerVers} />
@@ -11227,7 +11732,7 @@ export default function App() {
           const mp = capsuleActive.participants.find(p => p.userId === moi?.id);
           if (!mp?.marie) { allerVers("detail", capsuleActive.id); return null; }
         }
-        return <EcranOuverture capsule={capsuleActive} moi={moi} allerVers={allerVers} reagir={reagir} voterPari={voterPari} voterFavori={voterFavori} premiereFois={ecranPrecedent === "animation_ouverture"} />;
+        return <EcranOuverture capsule={capsuleActive} moi={moi} allerVers={allerVers} reagir={reagir} voterPari={voterPari} voterSouvenir={voterSouvenir} voterFavori={voterFavori} premiereFois={ecranPrecedent === "animation_ouverture"} />;
       })()}
       {ecran === "animation_ouverture" && capsuleActive?.formule === "mariage" && <AnimationOuvertureMariage capsule={capsuleActive} allerVers={allerVers} />}
       {ecran === "animation_ouverture" && capsuleActive?.formule !== "mariage" && <AnimationOuverture capsule={capsuleActive} allerVers={allerVers} />}
