@@ -5787,6 +5787,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
   const [texte, setTexte] = useState("");
   const [media, setMedia] = useState(null);         // File object (pour l'upload)
   const [mediaPreviewUrl, setMediaPreviewUrl] = useState(null); // blob URL (pour l'affichage)
+  const [enUpload, setEnUpload] = useState(false);
   const [filtre, setFiltre] = useState("original");
   const [ambiance, setAmbiance] = useState("soleil");
   const [enregistrement, setEnregistrement] = useState(false);
@@ -6089,6 +6090,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
       ? voteQuestion.trim()
       : texte.trim();
 
+    if (typeContrib === "video") setEnUpload(true);
     try {
       await ajouterContribution(capsule.id, {
         id: genererId(), auteurId: auteurIds[0], type: typeContrib, texte: texteAEnvoyer,
@@ -6101,7 +6103,7 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
         filtre, ambiance: typeContrib === "message" ? ambiance : null,
         date: datePrise || new Date().toISOString(), reactions: {},
       });
-    } catch {}
+    } catch { setEnUpload(false); }
     allerVers("detail", capsule.id);
   }
   const auteur = capsule.participants.find((p) => p.id === auteurIds[0]);
@@ -6247,17 +6249,38 @@ function EcranContribution({ capsule, moi, allerVers, ajouterContribution, edite
                 placeholder="Ajouter un commentaire… (optionnel)"
                 value={texte} onChange={(ev) => setTexte(ev.target.value)} />
 
-              <button type="button" style={S.boutonPrincipal} onClick={envoyer}>
-                🔒 Sceller ce souvenir
-              </button>
-
-              <label style={{ position: "relative", display: "block", textAlign: "center",
-                padding: "8px 0", color: COULEURS.doux, fontSize: 14, fontWeight: 600,
-                cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-                <input type="file" accept={accept} capture="environment"
-                  style={inputOverlay} onChange={onSelect} />
-                <span style={noPtr}>↩ Reprendre une autre {typeContrib === "photo" ? "photo" : "vidéo"}</span>
-              </label>
+              {enUpload && typeContrib === "video" ? (
+                <div style={{ textAlign: "center", padding: "18px 0" }}>
+                  <style>{`
+                    @keyframes bloomSpin { to { transform: rotate(360deg); } }
+                    @keyframes bloomPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+                  `}</style>
+                  <div style={{ display: "inline-block", width: 40, height: 40, borderRadius: "50%",
+                    border: "3px solid #e8e0ec", borderTopColor: COULEURS.violet || "#7C3AED",
+                    animation: "bloomSpin 0.8s linear infinite", marginBottom: 12 }} />
+                  <div style={{ fontSize: 14, fontWeight: 700, color: COULEURS.encre,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif", animation: "bloomPulse 1.5s ease-in-out infinite" }}>
+                    Envoi de la vidéo en cours…
+                  </div>
+                  <div style={{ fontSize: 12, color: COULEURS.doux, marginTop: 4,
+                    fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    Cela peut prendre quelques secondes
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <button type="button" style={S.boutonPrincipal} onClick={envoyer}>
+                    🔒 Sceller ce souvenir
+                  </button>
+                  <label style={{ position: "relative", display: "block", textAlign: "center",
+                    padding: "8px 0", color: COULEURS.doux, fontSize: 14, fontWeight: 600,
+                    cursor: "pointer", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                    <input type="file" accept={accept} capture="environment"
+                      style={inputOverlay} onChange={onSelect} />
+                    <span style={noPtr}>↩ Reprendre une autre {typeContrib === "photo" ? "photo" : "vidéo"}</span>
+                  </label>
+                </>
+              )}
             </>
           );
         }
