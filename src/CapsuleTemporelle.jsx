@@ -10861,6 +10861,7 @@ export default function App() {
   const gamiInitRef = React.useRef(false);
   const gamiPrevRef = React.useRef(null);
   const premierChargementRef = React.useRef(true);
+  const chargerContribsRef   = React.useRef(null);
 
   // Déclenche les toasts de badge/niveau quand gami change (résout la perte de badges en cas d'appels rapides)
   useEffect(() => {
@@ -11029,7 +11030,10 @@ export default function App() {
     if (!session) return;
     const canal = supabase
       .channel('mises-a-jour')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contributions' }, () => chargerDonnees())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contributions' }, (payload) => {
+        const cid = payload.new?.capsule_id || payload.old?.capsule_id;
+        if (cid) chargerContribsRef.current?.(cid);
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => chargerDonnees())
       .subscribe();
     return () => supabase.removeChannel(canal);
@@ -11061,13 +11065,14 @@ export default function App() {
   async function chargerDonnees() {
     const estPremier = premierChargementRef.current;
     if (estPremier) setChargement(true);
-    const [{ data: profil }, { data: capsulesDB }, { data: gamiDB }] = await Promise.all([
+    const [{ data: profil }, { data: capsulesDB, error: capsErreur }, { data: gamiDB }] = await Promise.all([
       supabase.from("profiles").select("*").eq("id", session.user.id).maybeSingle(),
       supabase.from("capsules")
-        .select("*, participants(*), contributions(*, reactions(*)), createur:created_by(abonnement, abonnement_expire_at)")
+        .select("*, participants(*)")
         .order("created_at", { ascending: false }),
       supabase.from("gamification").select("*").eq("user_id", session.user.id).maybeSingle(),
     ]);
+    if (capsErreur) console.error("[chargerDonnees] capsules:", capsErreur.message);
     if (profil) setMoi(normaliserProfil(profil));
     // Fusionne DB + état local : prend le max de chaque compteur.
     // Évite qu'un rechargement déclenché par Realtime écrase une progression locale
@@ -11096,10 +11101,16 @@ export default function App() {
       // Fusionne avec l'état local pour ne pas perdre les capsules créées optimistiquement
       // (creerCapsule les ajoute localement avant que Realtime ne confirme).
       setCapsules(prev => {
-        if (estPremier || !prev.length) return liste;
+        // Préserve les contributions déjà chargées pour éviter de les effacer entre les recharges
+        const prevMap = new Map(prev.map(c => [c.id, c]));
+        const merged = liste.map(c => ({
+          ...c,
+          contributions: prevMap.get(c.id)?.contributions || [],
+        }));
+        if (!prev.length) return merged;
         const ids = new Set(liste.map(c => c.id));
         const localOnly = prev.filter(c => !ids.has(c.id));
-        return localOnly.length ? [...liste, ...localOnly] : liste;
+        return localOnly.length ? [...merged, ...localOnly] : merged;
       });
     }
     if (estPremier) {
@@ -11109,6 +11120,33 @@ export default function App() {
     // Charge les notifications après que les capsules sont disponibles
     if (capsulesDB) chargerNotifsPour(capsulesDB.map(normaliserCapsule));
   }
+
+  // Charge les contributions d'une capsule à la demande (appelé à l'ouverture ou par Realtime)
+  async function chargerContributions(capsuleId) {
+    const { data, error } = await supabase
+      .from("contributions")
+      .select("*, reactions(*)")
+      .eq("capsule_id", capsuleId)
+      .order("created_at", { ascending: true });
+    if (error) { console.error("[chargerContributions]", error.message); return; }
+    setCapsules(prev => prev.map(c =>
+      c.id === capsuleId
+        ? { ...c, contributions: (data || []).map(normaliserContribution) }
+        : c
+    ));
+  }
+  // Garde la ref à jour à chaque render pour le Realtime (évite les closures figées)
+  chargerContribsRef.current = chargerContributions;
+
+  // Charge les contributions quand l'utilisateur navigue vers une capsule
+  useEffect(() => {
+    if (!capsuleActiveId || !session) return;
+    const ecransAvecContribs = [
+      "detail", "ouverture", "contribution", "papy", "papy_simple",
+      "vue_papy_simple", "animation_ouverture", "senior", "choix_role_papy",
+    ];
+    if (ecransAvecContribs.includes(ecran)) chargerContribsRef.current?.(capsuleActiveId);
+  }, [capsuleActiveId, ecran, session]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Suppression de compte complète (RGPD) ──────────────────────────────────
   async function seDeconnecter() {
