@@ -2702,6 +2702,16 @@ function SectionVoteFavori({ capsule, moisParticipantId, voterFavori }) {
 
 function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirNotifs }) {
   const aucuneCapsuleActive = capsules.filter(c => !c.ouverte).length === 0;
+  const [filtre, setFiltre] = React.useState("toutes");
+
+  const nbEnCours  = capsules.filter(c => !c.ouverte).length;
+  const nbOuvertes = capsules.filter(c => c.ouverte).length;
+
+  const capsulesFiltrees = filtre === "en_cours"
+    ? capsules.filter(c => !c.ouverte)
+    : filtre === "ouvertes"
+    ? capsules.filter(c => c.ouverte)
+    : capsules;
 
   return (
     <div style={S.ecran}>
@@ -2741,6 +2751,42 @@ function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirN
       {/* Preuve sociale : montre que Blooom est vivant et utilisé, incite à créer */}
       <CarteStatRotative />
 
+      {/* Filtre En cours / Ouvertes */}
+      {capsules.length > 0 && (
+        <div style={{ display: "flex", gap: 8, marginTop: 14, marginBottom: 4 }}>
+          {[
+            { id: "en_cours",  label: "En cours",  emoji: "⏳", nb: nbEnCours  },
+            { id: "ouvertes",  label: "Ouvertes",  emoji: "🔓", nb: nbOuvertes },
+          ].map(opt => {
+            const actif = filtre === opt.id;
+            return (
+              <button key={opt.id}
+                onClick={() => setFiltre(actif ? "toutes" : opt.id)}
+                style={{
+                  flex: 1, display: "flex", alignItems: "center", justifyContent: "center",
+                  gap: 6, padding: "9px 0", borderRadius: 999,
+                  border: actif ? "none" : `1.5px solid ${COULEURS.bordure}`,
+                  background: actif ? DEGRADE : "transparent",
+                  color: actif ? "#fff" : COULEURS.doux,
+                  fontWeight: 700, fontSize: 13, cursor: "pointer",
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  transition: "all 0.2s ease",
+                  boxShadow: actif ? "0 4px 14px rgba(255,107,94,0.3)" : "none",
+                }}>
+                <span>{opt.emoji}</span>
+                <span>{opt.label}</span>
+                <span style={{
+                  background: actif ? "rgba(255,255,255,0.25)" : `${COULEURS.doux}22`,
+                  borderRadius: 999, padding: "1px 7px", fontSize: 11, fontWeight: 800,
+                }}>
+                  {opt.nb}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {capsules.length === 0 && (
         <div style={S.videAccueil}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🌅</div>
@@ -2748,8 +2794,19 @@ function EcranCapsules({ capsules, moi, allerVers, notifications = [], onOuvrirN
         </div>
       )}
 
-      <div style={{ marginTop: 18 }}>
-        {capsules.map((c) => {
+      {capsulesFiltrees.length === 0 && capsules.length > 0 && (
+        <div style={{ textAlign: "center", padding: "32px 0", color: COULEURS.doux }}>
+          <div style={{ fontSize: 36, marginBottom: 10 }}>
+            {filtre === "en_cours" ? "⏳" : "🔓"}
+          </div>
+          <p style={{ fontSize: 14, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            {filtre === "en_cours" ? "Aucune capsule en cours." : "Aucune capsule ouverte."}
+          </p>
+        </div>
+      )}
+
+      <div style={{ marginTop: 10 }}>
+        {capsulesFiltrees.map((c) => {
           const jours = joursRestants(c.dateOuverture);
           const ouvrable = estOuvrable(c);
           const typeInfo = TYPES_CAPSULES.find((t) => t.id === c.type);
@@ -11716,11 +11773,11 @@ export default function App() {
       const field = typeToField[contribution.type];
       const capsule = capsules.find(c => c.id === capsuleId);
       const nouvelleContrib = normaliserContribution({ ...data, reactions: [] });
-      const newCompte = field && capsule ? (capsule[field] ?? 0) + 1 : null;
-      if (field && newCompte !== null) {
-        supabase.from("capsules").update({ [field]: newCompte }).eq("id", capsuleId);
+      if (field) {
+        // RPC security definer : contourne le RLS, atomique, fiable pour tous les participants
+        supabase.rpc("incrementer_compte_media", { p_capsule_id: capsuleId, p_champ: field });
         setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
-          ...c, [field]: newCompte, contributions: [...c.contributions, nouvelleContrib],
+          ...c, [field]: (c[field] ?? 0) + 1, contributions: [...c.contributions, nouvelleContrib],
         }));
       } else {
         setCapsules(l => l.map(c => c.id !== capsuleId ? c : {
