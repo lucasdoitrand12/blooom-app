@@ -4082,27 +4082,15 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
             <div style={{ position: "absolute", inset: 0,
               background: "linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.68) 100%)" }} />
             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 18px" }}>
-              {editionNom ? (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input value={nouveauNom} onChange={e => setNouveauNom(e.target.value)}
-                    style={{ flex: 1, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,215,100,0.7)",
-                      borderRadius: 10, padding: "6px 10px", fontSize: 15, color: "#fff", fontWeight: 700, outline: "none" }} autoFocus />
-                  <button style={{ background: "rgba(201,168,76,0.8)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", fontWeight: 700, cursor: "pointer" }}
-                    onClick={() => { modifierNom(capsule.id, nouveauNom); setEditionNom(false); }}>✓</button>
-                  <button style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", cursor: "pointer" }}
-                    onClick={() => { setNouveauNom(capsule.nom); setEditionNom(false); }}>✕</button>
-                </div>
-              ) : (
-                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 18,
-                  color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,0.5)" }}>
-                  💍 {capsule.nom}
-                  {moi?.id === capsule.createurId && modifierNom && (
-                    <button style={{ display: "block", background: "none", border: "none",
-                      color: "rgba(255,215,100,0.85)", fontSize: 11, cursor: "pointer", fontWeight: 600, padding: "3px 0 0" }}
-                      onClick={() => setEditionNom(true)}>✏️ Renommer</button>
-                  )}
-                </div>
-              )}
+              <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 18,
+                color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,0.5)" }}>
+                💍 {capsule.nom}
+                {moi?.id === capsule.createurId && modifierNom && (
+                  <button style={{ display: "block", background: "none", border: "none",
+                    color: "rgba(255,215,100,0.85)", fontSize: 11, cursor: "pointer", fontWeight: 600, padding: "3px 0 0" }}
+                    onClick={() => setEditionNom(true)}>✏️ Renommer</button>
+                )}
+              </div>
               <div style={{ color: "rgba(255,215,100,0.9)", fontSize: 12, marginTop: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
                 {capsule.participants.length} invité{capsule.participants.length > 1 ? "s" : ""} · {capsule.contributions.length} souvenir{capsule.contributions.length > 1 ? "s" : ""}
               </div>
@@ -4131,23 +4119,10 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
             <span className="mp8" style={{ position: "absolute", top: 32,   right: 42,  fontSize: 10, pointerEvents: "none", zIndex: 1 }}>💫</span>
             <div className="mpFlotte" style={{ textAlign: "center", fontSize: 46, lineHeight: 1, marginBottom: 6, position: "relative", zIndex: 2 }}>💍</div>
             <div style={{ textAlign: "center", color: "#fff", fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 18, textShadow: "0 2px 10px rgba(0,0,0,.3)", position: "relative", zIndex: 2 }}>
-              {editionNom ? (
-                <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
-                  <input value={nouveauNom} onChange={e => setNouveauNom(e.target.value)}
-                    style={{ flex: 1, maxWidth: 200, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,215,100,0.7)", borderRadius: 10, padding: "6px 10px", fontSize: 15, color: "#fff", fontWeight: 700, outline: "none" }} autoFocus />
-                  <button style={{ background: "rgba(201,168,76,0.8)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", fontWeight: 700, cursor: "pointer" }}
-                    onClick={() => { modifierNom(capsule.id, nouveauNom); setEditionNom(false); }}>✓</button>
-                  <button style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", cursor: "pointer" }}
-                    onClick={() => { setNouveauNom(capsule.nom); setEditionNom(false); }}>✕</button>
-                </div>
-              ) : (
-                <>
-                  {capsule.nom}
-                  {moi?.id === capsule.createurId && modifierNom && (
-                    <button style={{ display: "block", margin: "4px auto 0", background: "none", border: "none", color: "rgba(255,215,100,0.75)", fontSize: 11, cursor: "pointer", fontWeight: 600, padding: 0 }}
-                      onClick={() => setEditionNom(true)}>✏️ Renommer</button>
-                  )}
-                </>
+              {capsule.nom}
+              {moi?.id === capsule.createurId && modifierNom && (
+                <button style={{ display: "block", margin: "4px auto 0", background: "none", border: "none", color: "rgba(255,215,100,0.75)", fontSize: 11, cursor: "pointer", fontWeight: 600, padding: 0 }}
+                  onClick={() => setEditionNom(true)}>✏️ Renommer</button>
               )}
             </div>
             <div style={{ textAlign: "center", color: "rgba(255,215,100,.95)", fontSize: 12, marginTop: 4, fontFamily: "'Plus Jakarta Sans',sans-serif", position: "relative", zIndex: 2 }}>
@@ -4194,6 +4169,42 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
             </button>
           )}
         </>
+      )}
+
+      {/* Renommage mariage — affiché en dehors du hero/shimmer pour éviter le overflow:hidden */}
+      {estMariage && editionNom && (
+        <div style={{ background: "#fff", borderRadius: 16, padding: "16px", marginBottom: 12,
+          boxShadow: "0 4px 16px rgba(46,34,48,0.12)", border: "1.5px solid #C9A84C" }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "#78350F", marginBottom: 10,
+            fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+            ✏️ Nouveau nom de la capsule
+          </div>
+          <input
+            value={nouveauNom}
+            onChange={e => setNouveauNom(e.target.value)}
+            autoFocus
+            style={{ ...S.input, marginBottom: 10 }}
+            placeholder="Ex. Mariage de Sophie & Thomas…"
+          />
+          <div style={{ display: "flex", gap: 8 }}>
+            <button
+              onClick={() => { modifierNom(capsule.id, nouveauNom); setEditionNom(false); }}
+              style={{ flex: 1, padding: "11px 0", borderRadius: 12, border: "none",
+                background: "linear-gradient(135deg,#3D0C11,#831843,#BE185D,#C9A84C)",
+                color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer",
+                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              ✓ Valider
+            </button>
+            <button
+              onClick={() => { setNouveauNom(capsule.nom); setEditionNom(false); }}
+              style={{ flex: 1, padding: "11px 0", borderRadius: 12,
+                border: `1px solid ${COULEURS.bordure}`, background: "none",
+                color: COULEURS.doux, fontWeight: 600, fontSize: 14, cursor: "pointer",
+                fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              Annuler
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── Bandeau mensuel Papy/Mamie ── */}
