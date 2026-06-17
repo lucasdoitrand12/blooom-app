@@ -4064,96 +4064,136 @@ function EcranDetail({ capsule, moi, allerVers, ouvrirCapsule, modifierDate, mod
       `}</style>}
       <EnTeteRetour titre={capsule.nom} onRetour={() => allerVers("capsules")} />
 
-      {estMariage && (
-        <div className="mpShimmer" style={{borderRadius:22,padding:"26px 18px 20px",marginBottom:14,position:"relative",overflow:"hidden",flexShrink:0}}>
-          <span className="mp1" style={{position:"absolute",top:7,   left:14,  fontSize:21,pointerEvents:"none",zIndex:1}}>✨</span>
-          <span className="mp2" style={{position:"absolute",top:11,  right:22, fontSize:17,pointerEvents:"none",zIndex:1}}>💫</span>
-          <span className="mp3" style={{position:"absolute",top:24,  left:"43%",fontSize:13,pointerEvents:"none",zIndex:1}}>⭐</span>
-          <span className="mp4" style={{position:"absolute",bottom:9, left:30,  fontSize:18,pointerEvents:"none",zIndex:1}}>✨</span>
-          <span className="mp5" style={{position:"absolute",bottom:11,right:18, fontSize:15,pointerEvents:"none",zIndex:1}}>💫</span>
-          <span className="mp6" style={{position:"absolute",top:8,   left:"68%",fontSize:12,pointerEvents:"none",zIndex:1}}>✨</span>
-          <span className="mp7" style={{position:"absolute",bottom:18,left:"54%",fontSize:11,pointerEvents:"none",zIndex:1}}>⭐</span>
-          <span className="mp8" style={{position:"absolute",top:32,  right:42, fontSize:10,pointerEvents:"none",zIndex:1}}>💫</span>
-          <div className="mpFlotte" style={{textAlign:"center",fontSize:46,lineHeight:1,marginBottom:6,position:"relative",zIndex:2}}>💍</div>
-          <div style={{textAlign:"center",color:"#fff",fontFamily:"'Bricolage Grotesque',sans-serif",fontWeight:800,fontSize:18,textShadow:"0 2px 10px rgba(0,0,0,.3)",position:"relative",zIndex:2}}>
-            {editionNom ? (
-              <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
-                <input
-                  value={nouveauNom}
-                  onChange={e => setNouveauNom(e.target.value)}
-                  style={{ flex: 1, maxWidth: 200, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,215,100,0.7)", borderRadius: 10, padding: "6px 10px", fontSize: 15, color: "#fff", fontWeight: 700, outline: "none" }}
-                  autoFocus
-                />
-                <button style={{ background: "rgba(201,168,76,0.8)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", fontWeight: 700, cursor: "pointer" }}
-                  onClick={() => { modifierNom(capsule.id, nouveauNom); setEditionNom(false); }}>✓</button>
-                <button style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", cursor: "pointer" }}
-                  onClick={() => { setNouveauNom(capsule.nom); setEditionNom(false); }}>✕</button>
-              </div>
-            ) : (
-              <>
-                {capsule.nom}
-                {moi?.id === capsule.createurId && modifierNom && (
-                  <button style={{ display: "block", margin: "4px auto 0", background: "none", border: "none", color: "rgba(255,215,100,0.75)", fontSize: 11, cursor: "pointer", fontWeight: 600, padding: 0 }}
-                    onClick={() => setEditionNom(true)}>✏️ Renommer</button>
-                )}
-              </>
-            )}
-          </div>
-          <div style={{textAlign:"center",color:"rgba(255,215,100,.95)",fontSize:12,marginTop:4,fontFamily:"'Plus Jakarta Sans',sans-serif",position:"relative",zIndex:2}}>
-            {capsule.participants.length} invité{capsule.participants.length>1?"s":""} · {capsule.contributions.length} souvenir{capsule.contributions.length>1?"s":""}
-          </div>
-        </div>
-      )}
-
-      <label style={{ display: "block", cursor: "pointer", marginBottom: 10,
-        ...(estMariage ? {border:"2px solid #C9A84C",borderRadius:20,overflow:"hidden"} : {}) }}
-        className={estMariage ? "mpPulse" : ""}>
-        <div style={{ ...S.detailCouverture, marginBottom: 0,
-          background: estMariage && !capsule.couverture
-            ? "linear-gradient(135deg,#3D0C11 0%,#831843 45%,#BE185D 75%,#C9A84C 100%)"
-            : capsule.couverture ? `url(${capsule.couverture}) center/cover` : (typeInfo?.teinte || "#FF6B5E"),
-          position:"relative", overflow:"hidden" }}>
-          {estMariage && !capsule.couverture && (
-            <>
-              <span className="mp1" style={{position:"absolute",top:8, left:12, fontSize:16,pointerEvents:"none"}}>✨</span>
-              <span className="mp3" style={{position:"absolute",top:10,right:14,fontSize:13,pointerEvents:"none"}}>💫</span>
-              <span className="mp5" style={{position:"absolute",bottom:8,left:22,fontSize:12,pointerEvents:"none"}}>⭐</span>
-              <span className="mp7" style={{position:"absolute",bottom:10,right:18,fontSize:14,pointerEvents:"none"}}>✨</span>
-            </>
-          )}
-          {!capsule.couverture && (
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 56 }}>{estMariage ? "💍" : typeInfo?.icone || "✨"}</div>
-              <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 600, marginTop: 8, background: "rgba(0,0,0,0.25)", padding: "6px 14px", borderRadius: 999 }}>
-                📷 Ajouter une photo de couverture
-              </div>
-            </div>
-          )}
-          {capsule.couverture && (
-            <div style={S.boutonCouverture}>📷 Changer</div>
-          )}
-        </div>
-        <input type="file" accept="image/*" style={{ display: "none" }}
-          onChange={(e) => lireFichierEnBase64(e, setSrcRecadrageCouv)} />
-      </label>
-
-      {/* Bouton recadrer photo existante */}
-      {capsule.couverture && (
-        <button onClick={() => setSrcRecadrageCouv(capsule.couverture)}
-          style={{ width: "100%", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)",
-            borderRadius: 12, color: "rgba(255,255,255,0.85)", padding: "8px 0",
-            fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 8, fontFamily: "inherit" }}>
-          ↕ Recadrer
-        </button>
-      )}
-
-      {/* Modal recadrage couverture */}
+      {/* Modal recadrage — commun à tous les types */}
       {srcRecadrageCouv && (
         <RecadreurCouverture
           src={srcRecadrageCouv}
           onValider={b64 => { modifierCouverture(capsule.id, b64); setSrcRecadrageCouv(null); }}
           onAnnuler={() => setSrcRecadrageCouv(null)}
         />
+      )}
+
+      {estMariage ? (
+        capsule.couverture ? (
+          /* ── Mariage avec photo : hero pleine largeur ── */
+          <div style={{ borderRadius: 22, overflow: "hidden", marginBottom: 14, position: "relative", flexShrink: 0 }}>
+            <img src={capsule.couverture} alt=""
+              style={{ width: "100%", height: 220, objectFit: "cover", display: "block" }} />
+            <div style={{ position: "absolute", inset: 0,
+              background: "linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.68) 100%)" }} />
+            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, padding: "16px 18px" }}>
+              {editionNom ? (
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input value={nouveauNom} onChange={e => setNouveauNom(e.target.value)}
+                    style={{ flex: 1, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,215,100,0.7)",
+                      borderRadius: 10, padding: "6px 10px", fontSize: 15, color: "#fff", fontWeight: 700, outline: "none" }} autoFocus />
+                  <button style={{ background: "rgba(201,168,76,0.8)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", fontWeight: 700, cursor: "pointer" }}
+                    onClick={() => { modifierNom(capsule.id, nouveauNom); setEditionNom(false); }}>✓</button>
+                  <button style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", cursor: "pointer" }}
+                    onClick={() => { setNouveauNom(capsule.nom); setEditionNom(false); }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 18,
+                  color: "#fff", textShadow: "0 2px 8px rgba(0,0,0,0.5)" }}>
+                  💍 {capsule.nom}
+                  {moi?.id === capsule.createurId && modifierNom && (
+                    <button style={{ display: "block", background: "none", border: "none",
+                      color: "rgba(255,215,100,0.85)", fontSize: 11, cursor: "pointer", fontWeight: 600, padding: "3px 0 0" }}
+                      onClick={() => setEditionNom(true)}>✏️ Renommer</button>
+                  )}
+                </div>
+              )}
+              <div style={{ color: "rgba(255,215,100,0.9)", fontSize: 12, marginTop: 4, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                {capsule.participants.length} invité{capsule.participants.length > 1 ? "s" : ""} · {capsule.contributions.length} souvenir{capsule.contributions.length > 1 ? "s" : ""}
+              </div>
+            </div>
+            {moi?.id === capsule.createurId && (
+              <label style={{ position: "absolute", top: 10, right: 10, cursor: "pointer" }}>
+                <div style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)", borderRadius: 10,
+                  padding: "6px 12px", color: "#fff", fontSize: 12, fontWeight: 700 }}>
+                  📷 Modifier
+                </div>
+                <input type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={(e) => lireFichierEnBase64(e, setSrcRecadrageCouv)} />
+              </label>
+            )}
+          </div>
+        ) : (
+          /* ── Mariage sans photo : bannière shimmer + ajout photo ── */
+          <div className="mpShimmer" style={{ borderRadius: 22, padding: "26px 18px 20px", marginBottom: 14, position: "relative", overflow: "hidden", flexShrink: 0 }}>
+            <span className="mp1" style={{ position: "absolute", top: 7,    left: 14,   fontSize: 21, pointerEvents: "none", zIndex: 1 }}>✨</span>
+            <span className="mp2" style={{ position: "absolute", top: 11,   right: 22,  fontSize: 17, pointerEvents: "none", zIndex: 1 }}>💫</span>
+            <span className="mp3" style={{ position: "absolute", top: 24,   left: "43%",fontSize: 13, pointerEvents: "none", zIndex: 1 }}>⭐</span>
+            <span className="mp4" style={{ position: "absolute", bottom: 9,  left: 30,   fontSize: 18, pointerEvents: "none", zIndex: 1 }}>✨</span>
+            <span className="mp5" style={{ position: "absolute", bottom: 11, right: 18,  fontSize: 15, pointerEvents: "none", zIndex: 1 }}>💫</span>
+            <span className="mp6" style={{ position: "absolute", top: 8,    left: "68%",fontSize: 12, pointerEvents: "none", zIndex: 1 }}>✨</span>
+            <span className="mp7" style={{ position: "absolute", bottom: 18, left: "54%",fontSize: 11, pointerEvents: "none", zIndex: 1 }}>⭐</span>
+            <span className="mp8" style={{ position: "absolute", top: 32,   right: 42,  fontSize: 10, pointerEvents: "none", zIndex: 1 }}>💫</span>
+            <div className="mpFlotte" style={{ textAlign: "center", fontSize: 46, lineHeight: 1, marginBottom: 6, position: "relative", zIndex: 2 }}>💍</div>
+            <div style={{ textAlign: "center", color: "#fff", fontFamily: "'Bricolage Grotesque',sans-serif", fontWeight: 800, fontSize: 18, textShadow: "0 2px 10px rgba(0,0,0,.3)", position: "relative", zIndex: 2 }}>
+              {editionNom ? (
+                <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center" }}>
+                  <input value={nouveauNom} onChange={e => setNouveauNom(e.target.value)}
+                    style={{ flex: 1, maxWidth: 200, background: "rgba(255,255,255,0.15)", border: "1.5px solid rgba(255,215,100,0.7)", borderRadius: 10, padding: "6px 10px", fontSize: 15, color: "#fff", fontWeight: 700, outline: "none" }} autoFocus />
+                  <button style={{ background: "rgba(201,168,76,0.8)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", fontWeight: 700, cursor: "pointer" }}
+                    onClick={() => { modifierNom(capsule.id, nouveauNom); setEditionNom(false); }}>✓</button>
+                  <button style={{ background: "rgba(255,255,255,0.15)", border: "none", borderRadius: 8, padding: "6px 12px", fontSize: 14, color: "#fff", cursor: "pointer" }}
+                    onClick={() => { setNouveauNom(capsule.nom); setEditionNom(false); }}>✕</button>
+                </div>
+              ) : (
+                <>
+                  {capsule.nom}
+                  {moi?.id === capsule.createurId && modifierNom && (
+                    <button style={{ display: "block", margin: "4px auto 0", background: "none", border: "none", color: "rgba(255,215,100,0.75)", fontSize: 11, cursor: "pointer", fontWeight: 600, padding: 0 }}
+                      onClick={() => setEditionNom(true)}>✏️ Renommer</button>
+                  )}
+                </>
+              )}
+            </div>
+            <div style={{ textAlign: "center", color: "rgba(255,215,100,.95)", fontSize: 12, marginTop: 4, fontFamily: "'Plus Jakarta Sans',sans-serif", position: "relative", zIndex: 2 }}>
+              {capsule.participants.length} invité{capsule.participants.length > 1 ? "s" : ""} · {capsule.contributions.length} souvenir{capsule.contributions.length > 1 ? "s" : ""}
+            </div>
+            {moi?.id === capsule.createurId && (
+              <label style={{ display: "block", cursor: "pointer", marginTop: 12, position: "relative", zIndex: 2 }}>
+                <div style={{ textAlign: "center", background: "rgba(0,0,0,0.25)", borderRadius: 10,
+                  padding: "7px 0", color: "rgba(255,255,255,0.9)", fontSize: 12, fontWeight: 700 }}>
+                  📷 Ajouter une photo de couverture
+                </div>
+                <input type="file" accept="image/*" style={{ display: "none" }}
+                  onChange={(e) => lireFichierEnBase64(e, setSrcRecadrageCouv)} />
+              </label>
+            )}
+          </div>
+        )
+      ) : (
+        /* ── Autres types : section couverture standard ── */
+        <>
+          <label style={{ display: "block", cursor: "pointer", marginBottom: 10 }}>
+            <div style={{ ...S.detailCouverture, marginBottom: 0,
+              background: capsule.couverture ? `url(${capsule.couverture}) center/cover` : (typeInfo?.teinte || "#FF6B5E"),
+              position: "relative", overflow: "hidden" }}>
+              {!capsule.couverture && (
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontSize: 56 }}>{typeInfo?.icone || "✨"}</div>
+                  <div style={{ color: "rgba(255,255,255,0.9)", fontSize: 13, fontWeight: 600, marginTop: 8, background: "rgba(0,0,0,0.25)", padding: "6px 14px", borderRadius: 999 }}>
+                    📷 Ajouter une photo de couverture
+                  </div>
+                </div>
+              )}
+              {capsule.couverture && <div style={S.boutonCouverture}>📷 Changer</div>}
+            </div>
+            <input type="file" accept="image/*" style={{ display: "none" }}
+              onChange={(e) => lireFichierEnBase64(e, setSrcRecadrageCouv)} />
+          </label>
+          {capsule.couverture && (
+            <button onClick={() => setSrcRecadrageCouv(capsule.couverture)}
+              style={{ width: "100%", background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)",
+                borderRadius: 12, color: "rgba(255,255,255,0.85)", padding: "8px 0",
+                fontSize: 13, fontWeight: 600, cursor: "pointer", marginBottom: 8, fontFamily: "inherit" }}>
+              ↕ Recadrer
+            </button>
+          )}
+        </>
       )}
 
       {/* ── Bandeau mensuel Papy/Mamie ── */}
